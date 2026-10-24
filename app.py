@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import os
 
 # Import modular components
 from styles import apply_custom_styles
@@ -9,7 +10,7 @@ from functions import render_sales_form, render_customer_form, convert_pnl_to_ex
 
 # Page Configuration
 st.set_page_config(
-    page_title="ORCA Plant Management System",
+    page_title="ORCA Water Company Management System",
     page_icon="💧",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -26,10 +27,20 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
-# Sidebar Navigation
-st.sidebar.markdown("<h2 style='color: #FFFFFF; font-size: 1.2rem;'>💧 ORCA PLANT</h2>", unsafe_allow_html=True)
-st.sidebar.markdown("<p style='color: #94A3B8; font-size: 0.8rem; margin-top: -10px;'>MANAGEMENT SYSTEM</p>", unsafe_allow_html=True)
-st.sidebar.markdown("---")
+# Sidebar Brand Layout with Logo Final.jpg & Title
+st.sidebar.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 5px;">
+""", unsafe_allow_html=True)
+
+if os.path.exists("Logo Final.jpg"):
+    st.sidebar.image("Logo Final.jpg", width=45)
+
+st.sidebar.markdown("""
+    </div>
+    <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
+    <p style='color: #94A3B8; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
+    <hr style='border: 1px solid #1E293B; margin: 15px 0;'>
+""", unsafe_allow_html=True)
 
 app_mode = st.sidebar.radio("Navigation", [
     "📊 Executive Dashboard", 
@@ -46,7 +57,7 @@ if app_mode == "📊 Executive Dashboard":
     st.markdown("""
         <div class="header-container">
             <div>
-                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
                 <div class="header-title">Executive Dashboard (P&L Summary)</div>
             </div>
         </div>
@@ -178,7 +189,7 @@ elif app_mode == "🛍️ Sales Orders & Invoices":
     st.markdown("""
         <div class="header-container">
             <div>
-                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
                 <div class="header-title">Sales Orders & Invoicing Control</div>
             </div>
         </div>
@@ -201,7 +212,7 @@ elif app_mode == "📦 Inventory & Raw Materials":
     st.markdown("""
         <div class="header-container">
             <div>
-                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
                 <div class="header-title">Inventory & Raw Materials Ledger</div>
             </div>
         </div>
@@ -220,7 +231,7 @@ elif app_mode == "👥 Customer Directory":
     st.markdown("""
         <div class="header-container">
             <div>
-                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
                 <div class="header-title">Active Customer Accounts Directory</div>
             </div>
         </div>
@@ -236,7 +247,7 @@ elif app_mode == "💸 Expenses & Owner Draws":
     st.markdown("""
         <div class="header-container">
             <div>
-                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
                 <div class="header-title">Operating Expenses & Owner Withdrawals</div>
             </div>
         </div>

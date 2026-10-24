@@ -28,9 +28,9 @@ except Exception as e:
 
 # Sidebar Brand Header
 st.sidebar.markdown("""
-    <h2 style='color: #FFFFFF; font-size: 1.2rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
-    <p style='color: #94A3B8; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
-    <hr style='border: 1px solid #1E293B; margin: 15px 0 20px 0;'>
+    <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
+    <p style='color: #94A3B8; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
+    <hr style='border: 1px solid #1E293B; margin: 15px 0 15px 0;'>
 """, unsafe_allow_html=True)
 
 # Navigation Radio Buttons
@@ -53,22 +53,24 @@ if app_mode == "📊 Executive Dashboard":
         </div>
     """, unsafe_allow_html=True)
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric(label="Gross Sales", value="PKR 192,320.00", delta="142 Invoiced Orders")
-    with col2:
-        st.metric(label="Total Discounts", value="PKR 6,190.00", delta="Rate Adjustments")
-    with col3:
-        st.metric(label="Net Sales Revenue", value="PKR 186,130.00", delta="Fully Reconciled")
-    with col4:
-        st.metric(label="Net Profit / Cash Flow", value="PKR 17,966.46", delta="After Draws & Expenses")
+    # Top Row Metrics (4 columns)
+    m1, m2, m3, m4 = st.columns(4)
+    with m1:
+        st.metric(label="Gross Sales", value="PKR 192,320", delta="142 Orders")
+    with m2:
+        st.metric(label="Total Discounts", value="PKR 6,190", delta="Adjustments")
+    with m3:
+        st.metric(label="Net Sales Revenue", value="PKR 186,130", delta="Reconciled")
+    with m4:
+        st.metric(label="Net Profit / Cash Flow", value="PKR 17,966", delta="Net Return")
 
-    col5, col6, col7 = st.columns(3)
-    with col5:
+    # Bottom Row Metrics (3 columns)
+    m5, m6, m7 = st.columns(3)
+    with m5:
         st.metric(label="Cost of Goods Sold (COGS)", value="PKR 136,053.54")
-    with col6:
+    with m6:
         st.metric(label="Direct Operating Expenses", value="PKR 11,760.00")
-    with col7:
+    with m7:
         st.metric(label="Owner Draws", value="PKR 20,350.00")
 
     st.markdown("---")

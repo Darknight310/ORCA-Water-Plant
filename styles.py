@@ -2,87 +2,84 @@ import streamlit as st
 
 def apply_custom_styles():
     st.markdown("""
-        <style>
-        /* Global Dark Theme Background */
-        .stApp {
-            background-color: #0B0F19;
+        <stylemock>
+        /* Global Background & Typography */
+        .main {
+            background-color: #0B0F17;
             color: #F8FAFC;
         }
         
-        /* Hide default Streamlit header elements */
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        
-        /* Sidebar Styling */
-        [data-testid="stSidebar"] {
-            background-color: #0F172A;
-            border-right: 1px solid #1E293B;
-        }
-        [data-testid="stSidebar"] .block-container {
-            padding-top: 2rem;
-        }
-        
-        /* Top Header Bar */
+        /* Header Container */
         .header-container {
+            background-color: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 12px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background-color: #0F172A;
-            padding: 15px 25px;
-            border-radius: 12px;
-            border: 1px solid #1E293B;
-            margin-bottom: 25px;
         }
+        
         .header-title {
-            font-size: 1.5rem;
-            font-weight: 700;
             color: #FFFFFF;
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin: 0;
             letter-spacing: -0.5px;
         }
+        
         .header-subtitle {
-            font-size: 0.85rem;
             color: #38BDF8;
-            font-weight: 600;
+            font-size: 0.75rem;
+            font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
+            margin-bottom: 4px;
         }
 
-        /* Metric Cards Styling */
-        div.stMetric {
-            background-color: #111827;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-            border: 1px solid #1F2937;
-        }
-        div.stMetric label { color: #94A3B8 !important; font-weight: 600 !important; font-size: 0.8rem !important; text-transform: uppercase; }
-        div.stMetric [data-testid="stMetricValue"] { color: #FFFFFF !important; font-weight: 700 !important; font-size: 1.5rem !important; }
-        
-        /* Dataframes & Tables */
-        [data-testid="stDataFrame"] {
-            background-color: #111827;
-            border-radius: 10px;
-            border: 1px solid #1F2937;
-            padding: 10px;
-        }
-        
-        /* Buttons */
-        .stButton>button {
-            background-color: #0284C7;
-            color: white;
-            border-radius: 8px;
+        /* Transform Sidebar Radio Items into Large Clickable Tiles */
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p {
+            font-size: 0.95rem;
             font-weight: 600;
-            border: none;
-            padding: 0.5rem 1rem;
         }
-        .stButton>button:hover { background-color: #0369A1; color: white; }
-        
-        /* Expander */
-        .streamlit-expanderHeader {
-            background-color: #111827;
-            color: #FFFFFF;
-            border-radius: 8px;
-            border: 1px solid #1F2937;
+
+        div[role="radiogroup"] {
+            gap: 10px;
         }
-        </style>
-    """, unsafe_allow_html=True)
+
+        div[role="radiogroup"] > label {
+            background-color: #111827 !important;
+            border: 1px solid #1F2937 !important;
+            border-radius: 10px !important;
+            padding: 14px 16px !important;
+            margin-bottom: 4px !important;
+            width: 100% !important;
+            transition: all 0.2s ease-in-out !important;
+            cursor: pointer !important;
+        }
+
+        div[role="radiogroup"] > label:hover {
+            border-color: #38BDF8 !important;
+            background-color: #1E293B !important;
+            transform: translateY(-1px);
+        }
+
+        /* Active Selected Tile Styling */
+        div[role="radiogroup"] > label[data-checked="true"] {
+            background-color: #1E293B !important;
+            border-color: #38BDF8 !important;
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.15) !important;
+        }
+
+        div[role="radiogroup"] > label[data-checked="true"] p {
+            color: #38BDF8 !important;
+            font-weight: 700 !important;
+        }
+
+        /* Hide Default Radio Circles for Clean Tile Look */
+        div[role="radiogroup"] [data-testid="stRadioButtonIcon"] {
+            display: none !important;
+        }
+        </stylemock>
+    """.replace("stylemock", "style"), unsafe_allow_html=True)

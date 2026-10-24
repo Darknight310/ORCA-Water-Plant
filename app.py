@@ -48,10 +48,8 @@ app_mode = st.sidebar.radio("Navigation", [
 if app_mode == "📊 Executive Dashboard":
     st.markdown("""
         <div class="header-container">
-            <div>
-                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
-                <div class="header-title">Executive Dashboard (P&L Summary)</div>
-            </div>
+            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-title">Executive Dashboard (P&L Summary)</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -180,10 +178,8 @@ if app_mode == "📊 Executive Dashboard":
 elif app_mode == "🛍️ Sales Orders & Invoices":
     st.markdown("""
         <div class="header-container">
-            <div>
-                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
-                <div class="header-title">Sales Orders & Invoicing Control</div>
-            </div>
+            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-title">Sales Orders & Invoicing Control</div>
         </div>
     """, unsafe_allow_html=True)
     
@@ -203,10 +199,8 @@ elif app_mode == "🛍️ Sales Orders & Invoices":
 elif app_mode == "📦 Inventory & Raw Materials":
     st.markdown("""
         <div class="header-container">
-            <div>
-                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
-                <div class="header-title">Inventory & Raw Materials Ledger</div>
-            </div>
+            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-title">Inventory & Raw Materials Ledger</div>
         </div>
     """, unsafe_allow_html=True)
     
@@ -222,10 +216,8 @@ elif app_mode == "📦 Inventory & Raw Materials":
 elif app_mode == "👥 Customer Directory":
     st.markdown("""
         <div class="header-container">
-            <div>
-                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
-                <div class="header-title">Active Customer Accounts Directory</div>
-            </div>
+            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-title">Active Customer Accounts Directory</div>
         </div>
     """, unsafe_allow_html=True)
     
@@ -238,10 +230,8 @@ elif app_mode == "👥 Customer Directory":
 elif app_mode == "💸 Expenses & Owner Draws":
     st.markdown("""
         <div class="header-container">
-            <div>
-                <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
-                <div class="header-title">Operating Expenses & Owner Withdrawals</div>
-            </div>
+            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-title">Operating Expenses & Owner Withdrawals</div>
         </div>
     """, unsafe_allow_html=True)
     

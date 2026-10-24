@@ -23,11 +23,10 @@ st.markdown('<div class="sub-header">Reconciled Master Financial & Operational D
 
 # Locate Master Excel Database File Path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FILE_NAME = "ORCA_Water_Plant_Master_Database_Definitive.xlsx"
+FILE_NAME = "ORCA_Water_Plant_Master_Database_Definitive_3.xlsx"
 FILE_PATH = os.path.join(BASE_DIR, FILE_NAME)
 
 if not os.path.exists(FILE_PATH):
-    # Search working directory fallback
     FILE_PATH = FILE_NAME
 
 @st.cache_data
@@ -102,7 +101,7 @@ if app_mode == "📊 Executive P&L Dashboard":
         fig = px.pie(chart_data, values="Amount", names="Category", title="Financial Allocation Breakdown", hole=0.4)
         st.plotly_chart(fig, use_container_width=True)
 
-# 2. Sales Orders & Invoicing (Real Data from Excel)
+# 2. Sales Orders & Invoicing
 elif app_mode == "🛍️ Sales Orders & Invoicing":
     st.subheader("All Itemized Sales Orders (From Master Database)")
     sheet_key = "Sales_Orders" if "Sales_Orders" in db else list(db.keys())[0]
@@ -110,26 +109,31 @@ elif app_mode == "🛍️ Sales Orders & Invoicing":
     
     search_query = st.text_input("🔍 Search sales records...")
     if search_query:
-        # Search across string columns
         str_cols = df_sales.select_dtypes(include=['object']).columns
         mask = df_sales[str_cols].apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
         df_sales = df_sales[mask]
         
     st.dataframe(df_sales, use_container_width=True, hide_index=True)
+    
+    # Calculate Total Sales Amount if numeric column exists
+    numeric_cols = df_sales.select_dtypes(include=['number']).columns
+    if len(numeric_cols) > 0:
+        total_sum = df_sales[numeric_cols[-1]].sum()
+        st.markdown(f"### 📌 Total Filtered Amount: PKR {total_sum:,.2f}")
 
-# 3. Finished Goods & Inventory (Real Data from Excel)
+# 3. Finished Goods & Inventory
 elif app_mode == "📦 Finished Goods & Inventory":
     st.subheader("Products & Finished Goods Catalog")
     sheet_key = "Products" if "Products" in db else list(db.keys())[0]
     st.dataframe(db[sheet_key], use_container_width=True, hide_index=True)
 
-# 4. Raw Materials Tracker (Real Data from Excel)
+# 4. Raw Materials Tracker
 elif app_mode == "🧪 Raw Materials Tracker":
     st.subheader("Raw Materials Stock & Warehouse Ledger")
     sheet_key = "Raw_Materials" if "Raw_Materials" in db else list(db.keys())[0]
     st.dataframe(db[sheet_key], use_container_width=True, hide_index=True)
 
-# 5. Customer Directory (Real Data from Excel)
+# 5. Customer Directory
 elif app_mode == "👥 Customer Directory":
     st.subheader("Customer Accounts Directory")
     sheet_key = "Customers" if "Customers" in db else list(db.keys())[0]
@@ -142,16 +146,31 @@ elif app_mode == "👥 Customer Directory":
         df_cust = df_cust[mask]
         
     st.dataframe(df_cust, use_container_width=True, hide_index=True)
+    st.info(f"Total Accounts Listed: {len(df_cust)}")
 
-# 6. Expenses & Owner Draws (Real Data from Excel)
+# 6. Expenses & Owner Draws
 elif app_mode == "💸 Expenses & Owner Draws":
     st.subheader("Operating Expenses & Owner Draws Log")
     tab1, tab2 = st.tabs(["Direct Operating Expenses", "Owner Draws"])
     
     with tab1:
         sheet_key = "Direct_Operating_Expenses" if "Direct_Operating_Expenses" in db else list(db.keys())[0]
-        st.dataframe(db[sheet_key], use_container_width=True, hide_index=True)
+        df_exp = db[sheet_key]
+        st.dataframe(df_exp, use_container_width=True, hide_index=True)
+        
+        # Calculate sum for expenses
+        numeric_exp = df_exp.select_dtypes(include=['number']).columns
+        if len(numeric_exp) > 0:
+            exp_total = df_exp[numeric_exp[-1]].sum()
+            st.markdown(f"### 📌 Total Direct Operating Expenses: PKR {exp_total:,.2f}")
         
     with tab2:
         sheet_key = "Owners_Draws" if "Owners_Draws" in db else list(db.keys())[0]
-        st.dataframe(db[sheet_key], use_container_width=True, hide_index=True)
+        df_draws = db[sheet_key]
+        st.dataframe(df_draws, use_container_width=True, hide_index=True)
+        
+        # Calculate sum for owner draws
+        numeric_draws = df_draws.select_dtypes(include=['number']).columns
+        if len(numeric_draws) > 0:
+            draws_total = df_draws[numeric_draws[-1]].sum()
+            st.markdown(f"### 📌 Total Owner Withdrawals: PKR {draws_total:,.2f}")

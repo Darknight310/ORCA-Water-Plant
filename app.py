@@ -47,7 +47,6 @@ if not st.session_state.loaded:
             </style>
         """, unsafe_allow_html=True)
         
-        # Simulate loading steps with visual progress
         progress_bar = st.progress(0)
         for percent_complete in range(100):
             time.sleep(0.01)
@@ -112,7 +111,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Top Tab Buttons Bar
 top_cols = st.columns(5)
 for i, opt in enumerate(nav_options):
     with top_cols[i]:
@@ -136,7 +134,6 @@ if app_mode == "📊 Executive Dashboard":
         </div>
     """, unsafe_allow_html=True)
 
-    # Top Row Metrics (4 columns)
     m1, m2, m3, m4 = st.columns(4)
     with m1:
         st.metric(label="Gross Sales", value="PKR 192,320", delta="142 Orders")
@@ -147,7 +144,6 @@ if app_mode == "📊 Executive Dashboard":
     with m4:
         st.metric(label="Net Profit / Cash Flow", value="PKR 17,966", delta="Net Return")
 
-    # Bottom Row Metrics (3 columns)
     m5, m6, m7 = st.columns(3)
     with m5:
         st.metric(label="Cost of Goods Sold (COGS)", value="PKR 136,053.54")
@@ -270,12 +266,37 @@ elif app_mode == "🛍️ Sales Orders & Invoices":
     
     render_sales_form()
     
-    search_query = st.text_input("🔍 Search Sales Records:")
     df_sales = st.session_state.sales_df
+    
+    # Calculate dynamic totals for the summary tile
+    total_orders = len(df_sales)
+    total_qty = df_sales["Qty"].sum() if "Qty" in df_sales.columns else 0
+    
+    if "Total (PKR)" in df_sales.columns:
+        total_revenue = pd.to_numeric(df_sales["Total (PKR)"].astype(str).str.replace(",", ""), errors='coerce').sum()
+    else:
+        total_revenue = 0.0
+
+    # Summary Tile Card before the table
+    st.markdown(f"""
+        <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 18px 24px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="color: #94A3B8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Live Sales Summary</div>
+                <div style="color: #FFFFFF; font-size: 1.2rem; font-weight: 800; margin-top: 4px;">Total Orders: <span style="color: #38BDF8;">{total_orders}</span> &nbsp;|&nbsp; Total Qty Sold: <span style="color: #34D399;">{total_qty:,.0f}</span></div>
+            </div>
+            <div style="text-align: right;">
+                <div style="color: #94A3B8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">Total Revenue Generated</div>
+                <div style="color: #38BDF8; font-size: 1.35rem; font-weight: 800; margin-top: 2px;">PKR {total_revenue:,.2f}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    search_query = st.text_input("🔍 Search Sales Records:")
     if search_query:
         str_cols = df_sales.select_dtypes(include=['object']).columns
         mask = df_sales[str_cols].apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
         df_sales = df_sales[mask]
+        
     st.dataframe(df_sales, use_container_width=True, hide_index=True)
 
 # ==========================================

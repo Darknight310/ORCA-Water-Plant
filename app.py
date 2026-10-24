@@ -5,7 +5,7 @@ import plotly.express as px
 # Import modular components
 from styles import apply_custom_styles
 from database import load_database, init_session_state
-from functions import render_sales_form, render_customer_form
+from functions import render_sales_form, render_customer_form, convert_pnl_to_excel
 
 # Page Configuration
 st.set_page_config(
@@ -79,12 +79,22 @@ if app_mode == "📊 Executive Dashboard":
     col_left, col_right = st.columns([3, 2], gap="large")
     
     with col_left:
+        col_t1, col_t2, col_t3 = st.columns([3, 1.2, 1.2])
+        with col_t1:
+            st.markdown("<h3 style='color: #FFFFFF; font-size: 1.15rem; font-weight: 700; margin: 0;'>Master Profit & Loss Breakdown</h3>", unsafe_allow_html=True)
+        with col_t2:
+            st.markdown("<div style='background-color: #1E293B; color: #38BDF8; font-size: 0.75rem; font-weight: 600; padding: 6px 10px; border-radius: 6px; border: 1px solid #334155; text-align: center;'>Official Baseline</div>", unsafe_allow_html=True)
+        with col_t3:
+            excel_data = convert_pnl_to_excel()
+            st.download_button(
+                label="📥 Export Excel",
+                data=excel_data,
+                file_name="ORCA_Master_PnL_Breakdown.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
         st.markdown("""
-            <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 style="color: #FFFFFF; font-size: 1.15rem; font-weight: 700; margin: 0;">Master Profit & Loss Breakdown</h3>
-                    <span style="background-color: #1E293B; color: #38BDF8; font-size: 0.75rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: 1px solid #334155;">Official Baseline</span>
-                </div>
+            <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px; margin-top: 10px;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                     <thead>
                         <tr style="border-bottom: 1px solid #1F2937; color: #94A3B8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">

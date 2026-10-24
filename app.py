@@ -78,7 +78,7 @@ if app_mode == "📊 Executive Dashboard":
     
     col_left, col_right = st.columns([3, 2], gap="large")
     
-   with col_left:
+    with col_left:
         st.markdown("""
             <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -143,7 +143,7 @@ if app_mode == "📊 Executive Dashboard":
                 </table>
             </div>
         """, unsafe_allow_html=True)
-       
+
     with col_right:
         st.markdown("### 📊 Cost & Expense Breakdown")
         st.markdown("<p style='color: #94A3B8; font-size: 0.85rem; margin-top: -5px;'>Visual allocation of plant capital outflows.</p>", unsafe_allow_html=True)

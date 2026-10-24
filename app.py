@@ -26,14 +26,14 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
-# Clean Sidebar Header Title (Logo Removed)
+# Sidebar Brand Header
 st.sidebar.markdown("""
     <h2 style='color: #FFFFFF; font-size: 1.2rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
     <p style='color: #94A3B8; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
     <hr style='border: 1px solid #1E293B; margin: 15px 0 20px 0;'>
 """, unsafe_allow_html=True)
 
-# Navigation Radio Buttons rendered as Styled Tiles
+# Navigation Radio Buttons
 app_mode = st.sidebar.radio("Navigation", [
     "📊 Executive Dashboard", 
     "🛍️ Sales Orders & Invoices", 

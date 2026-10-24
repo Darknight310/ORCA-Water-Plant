@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import os
 
 # Import modular components
 from styles import apply_custom_styles
@@ -27,21 +26,14 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
-# Sidebar Brand Layout with Logo Final.jpg & Title
+# Clean Sidebar Header Title (Logo Removed)
 st.sidebar.markdown("""
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 5px;">
-""", unsafe_allow_html=True)
-
-if os.path.exists("Logo Final.jpg"):
-    st.sidebar.image("Logo Final.jpg", width=45)
-
-st.sidebar.markdown("""
-    </div>
-    <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
+    <h2 style='color: #FFFFFF; font-size: 1.2rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
     <p style='color: #94A3B8; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
-    <hr style='border: 1px solid #1E293B; margin: 15px 0;'>
+    <hr style='border: 1px solid #1E293B; margin: 15px 0 20px 0;'>
 """, unsafe_allow_html=True)
 
+# Navigation Radio Buttons rendered as Styled Tiles
 app_mode = st.sidebar.radio("Navigation", [
     "📊 Executive Dashboard", 
     "🛍️ Sales Orders & Invoices", 

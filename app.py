@@ -78,7 +78,7 @@ if app_mode == "📊 Executive Dashboard":
     
     col_left, col_right = st.columns([3, 2], gap="large")
     
-    with col_left:
+   with col_left:
         st.markdown("""
             <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -88,56 +88,56 @@ if app_mode == "📊 Executive Dashboard":
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                     <thead>
                         <tr style="border-bottom: 1px solid #1F2937; color: #94A3B8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <th style="text-align: left; padding-bottom: 10px;">Financial Category</th>
-                            <th style="text-align: right; padding-bottom: 10px;">Amount (PKR)</th>
-                            <th style="text-align: right; padding-bottom: 10px;">% of Revenue</th>
+                            <th style="text-align: left; padding: 0 12px 10px 12px;">Financial Category</th>
+                            <th style="text-align: right; padding: 0 12px 10px 12px;">Amount (PKR)</th>
+                            <th style="text-align: right; padding: 0 12px 10px 12px;">% of Revenue</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #FFFFFF; font-weight: 600;">Gross Sales Revenue</td>
-                            <td style="text-align: right; color: #FFFFFF; font-weight: 600;">192,320.00</td>
-                            <td style="text-align: right; color: #94A3B8;">103.3%</td>
+                            <td style="padding: 12px; color: #FFFFFF; font-weight: 600;">Gross Sales Revenue</td>
+                            <td style="text-align: right; padding: 12px; color: #FFFFFF; font-weight: 600;">192,320.00</td>
+                            <td style="text-align: right; padding: 12px; color: #94A3B8;">103.3%</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #FBBF24;">Less: Total Discounts Allowed</td>
-                            <td style="text-align: right; color: #FBBF24;">-6,190.00</td>
-                            <td style="text-align: right; color: #FBBF24;">-3.3%</td>
+                            <td style="padding: 12px; color: #FBBF24;">Less: Total Discounts Allowed</td>
+                            <td style="text-align: right; padding: 12px; color: #FBBF24;">-6,190.00</td>
+                            <td style="text-align: right; padding: 12px; color: #FBBF24;">-3.3%</td>
                         </tr>
                         <tr style="background-color: #162032; border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 10px; color: #34D399; font-weight: 600;">Net Sales Revenue</td>
-                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">186,130.00</td>
-                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">100.0%</td>
+                            <td style="padding: 12px; color: #34D399; font-weight: 600;">Net Sales Revenue</td>
+                            <td style="text-align: right; padding: 12px; color: #34D399; font-weight: 600;">186,130.00</td>
+                            <td style="text-align: right; padding: 12px; color: #34D399; font-weight: 600;">100.0%</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #F87171;">Less: Cost of Goods Sold (COGS)</td>
-                            <td style="text-align: right; color: #F87171;">-136,053.54</td>
-                            <td style="text-align: right; color: #F87171;">-73.1%</td>
+                            <td style="padding: 12px; color: #F87171;">Less: Cost of Goods Sold (COGS)</td>
+                            <td style="text-align: right; padding: 12px; color: #F87171;">-136,053.54</td>
+                            <td style="text-align: right; padding: 12px; color: #F87171;">-73.1%</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #FFFFFF; font-weight: 600;">Gross Profit</td>
-                            <td style="text-align: right; color: #38BDF8; font-weight: 600;">50,076.46</td>
-                            <td style="text-align: right; color: #FFFFFF; font-weight: 600;">26.9%</td>
+                            <td style="padding: 12px; color: #FFFFFF; font-weight: 600;">Gross Profit</td>
+                            <td style="text-align: right; padding: 12px; color: #38BDF8; font-weight: 600;">50,076.46</td>
+                            <td style="text-align: right; padding: 12px; color: #FFFFFF; font-weight: 600;">26.9%</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #FBBF24;">Less: Direct Operating Expenses</td>
-                            <td style="text-align: right; color: #FBBF24;">-11,760.00</td>
-                            <td style="text-align: right; color: #FBBF24;">-6.3%</td>
+                            <td style="padding: 12px; color: #FBBF24;">Less: Direct Operating Expenses</td>
+                            <td style="text-align: right; padding: 12px; color: #FBBF24;">-11,760.00</td>
+                            <td style="text-align: right; padding: 12px; color: #FBBF24;">-6.3%</td>
                         </tr>
                         <tr style="background-color: #162032; border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 10px; color: #34D399; font-weight: 600;">Operating Net Profit</td>
-                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">38,316.46</td>
-                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">20.6%</td>
+                            <td style="padding: 12px; color: #34D399; font-weight: 600;">Operating Net Profit</td>
+                            <td style="text-align: right; padding: 12px; color: #34D399; font-weight: 600;">38,316.46</td>
+                            <td style="text-align: right; padding: 12px; color: #34D399; font-weight: 600;">20.6%</td>
                         </tr>
                         <tr style="border-bottom: 1px solid #1F2937;">
-                            <td style="padding: 12px 0; color: #C084FC;">Less: Owner Personal Draws</td>
-                            <td style="text-align: right; color: #C084FC;">-20,350.00</td>
-                            <td style="text-align: right; color: #C084FC;">-10.9%</td>
+                            <td style="padding: 12px; color: #C084FC;">Less: Owner Personal Draws</td>
+                            <td style="text-align: right; padding: 12px; color: #C084FC;">-20,350.00</td>
+                            <td style="text-align: right; padding: 12px; color: #C084FC;">-10.9%</td>
                         </tr>
                         <tr style="background-color: #1E2640;">
-                            <td style="padding: 12px 10px; color: #38BDF8; font-weight: 700;">Net Retained Cash Flow</td>
-                            <td style="text-align: right; padding: 10px; color: #FFFFFF; font-weight: 700;">17,966.46</td>
-                            <td style="text-align: right; padding: 10px; color: #38BDF8; font-weight: 700;">9.7%</td>
+                            <td style="padding: 12px; color: #38BDF8; font-weight: 700;">Net Retained Cash Flow</td>
+                            <td style="text-align: right; padding: 12px; color: #FFFFFF; font-weight: 700;">17,966.46</td>
+                            <td style="text-align: right; padding: 12px; color: #38BDF8; font-weight: 700;">9.7%</td>
                         </tr>
                     </tbody>
                 </table>

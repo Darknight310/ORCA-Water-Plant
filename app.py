@@ -26,19 +26,6 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
-# Top Header Layout
-st.markdown("""
-    <div class="header-container">
-        <div>
-            <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
-            <div class="header-title">Executive Dashboard (P&L Summary)</div>
-        </div>
-        <div style="background-color: #1E293B; padding: 8px 16px; border-radius: 8px; color: #38BDF8; font-weight: 600; font-size: 0.9rem; border: 1px solid #334155;">
-            🟢 Database Synced (v3.0)
-        </div>
-    </div>
-""", unsafe_allow_html=True)
-
 # Sidebar Navigation
 st.sidebar.markdown("<h2 style='color: #FFFFFF; font-size: 1.2rem;'>💧 ORCA PLANT</h2>", unsafe_allow_html=True)
 st.sidebar.markdown("<p style='color: #94A3B8; font-size: 0.8rem; margin-top: -10px;'>MANAGEMENT SYSTEM</p>", unsafe_allow_html=True)
@@ -56,6 +43,15 @@ app_mode = st.sidebar.radio("Navigation", [
 # 1. EXECUTIVE DASHBOARD
 # ==========================================
 if app_mode == "📊 Executive Dashboard":
+    st.markdown("""
+        <div class="header-container">
+            <div>
+                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-title">Executive Dashboard (P&L Summary)</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.metric(label="Gross Sales", value="PKR 192,320.00", delta="142 Invoiced Orders")
@@ -178,8 +174,16 @@ if app_mode == "📊 Executive Dashboard":
 # ==========================================
 # 2. SALES ORDERS & INVOICES
 # ==========================================
-if app_mode == "🛍️ Sales Orders & Invoices":
-    st.subheader("🛍️ Sales Orders & Invoicing Control")
+elif app_mode == "🛍️ Sales Orders & Invoices":
+    st.markdown("""
+        <div class="header-container">
+            <div>
+                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-title">Sales Orders & Invoicing Control</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     render_sales_form()
     
     search_query = st.text_input("🔍 Search Sales Records:")
@@ -194,7 +198,15 @@ if app_mode == "🛍️ Sales Orders & Invoices":
 # 3. INVENTORY & RAW MATERIALS
 # ==========================================
 elif app_mode == "📦 Inventory & Raw Materials":
-    st.subheader("📦 Finished Goods & Raw Materials Ledger")
+    st.markdown("""
+        <div class="header-container">
+            <div>
+                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-title">Inventory & Raw Materials Ledger</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     tab1, tab2 = st.tabs(["Finished Goods", "Raw Materials"])
     with tab1:
         st.dataframe(st.session_state.products_df, use_container_width=True, hide_index=True)
@@ -205,7 +217,15 @@ elif app_mode == "📦 Inventory & Raw Materials":
 # 4. CUSTOMER DIRECTORY
 # ==========================================
 elif app_mode == "👥 Customer Directory":
-    st.subheader("👥 Active Customer Accounts Directory")
+    st.markdown("""
+        <div class="header-container">
+            <div>
+                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-title">Active Customer Accounts Directory</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     render_customer_form()
     st.dataframe(st.session_state.customers_df, use_container_width=True, hide_index=True)
 
@@ -213,7 +233,15 @@ elif app_mode == "👥 Customer Directory":
 # 5. EXPENSES & OWNER DRAWS
 # ==========================================
 elif app_mode == "💸 Expenses & Owner Draws":
-    st.subheader("💸 Operating Expenses & Owner Withdrawals")
+    st.markdown("""
+        <div class="header-container">
+            <div>
+                <div class="header-subtitle">ORCA PLANT MANAGEMENT SYSTEM</div>
+                <div class="header-title">Operating Expenses & Owner Withdrawals</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
     tab1, tab2 = st.tabs(["Operating Expenses", "Owner Draws"])
     with tab1:
         st.dataframe(st.session_state.expenses_df, use_container_width=True, hide_index=True)

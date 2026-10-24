@@ -97,10 +97,10 @@ if app_mode == "📊 Executive Dashboard":
             <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px; margin-top: 10px;">
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                     <thead>
-                        <tr style="border-bottom: 1px solid #1F2937; color: #94A3B8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
-                            <th style="text-align: left; padding: 0 12px 10px 12px;">Financial Category</th>
-                            <th style="text-align: right; padding: 0 12px 10px 12px;">Amount (PKR)</th>
-                            <th style="text-align: right; padding: 0 12px 10px 12px;">% of Revenue</th>
+                        <tr style="border-bottom: 2px solid #334155; color: #F8FAFC; font-size: 0.85rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px;">
+                            <th style="text-align: left; padding: 0 12px 12px 12px;">Financial Category</th>
+                            <th style="text-align: right; padding: 0 12px 12px 12px;">Amount (PKR)</th>
+                            <th style="text-align: right; padding: 0 12px 12px 12px;">% of Revenue</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -178,7 +178,7 @@ if app_mode == "📊 Executive Dashboard":
 # ==========================================
 # 2. SALES ORDERS & INVOICES
 # ==========================================
-elif app_mode == "🛍️ Sales Orders & Invoices":
+if app_mode == "🛍️ Sales Orders & Invoices":
     st.subheader("🛍️ Sales Orders & Invoicing Control")
     render_sales_form()
     

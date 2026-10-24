@@ -3,7 +3,7 @@ import streamlit as st
 def apply_custom_styles():
     st.markdown("""
         <style>
-        /* Global Background & Typography */
+        /* Global App Theme */
         .main {
             background-color: #0B0F17;
             color: #F8FAFC;
@@ -16,9 +16,6 @@ def apply_custom_styles():
             border-radius: 12px;
             padding: 20px 24px;
             margin-bottom: 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
         
         .header-title {
@@ -38,12 +35,28 @@ def apply_custom_styles():
             margin-bottom: 4px;
         }
 
-        /* Clean Sidebar Radio Spacing */
-        div[role="radiogroup"] {
-            gap: 6px;
+        /* Sidebar Styling & Clean Navigation List */
+        [data-testid="stSidebar"] {
+            background-color: #0B0F17;
+            border-right: 1px solid #1F2937;
         }
-        div[role="radiogroup"] label {
-            padding: 4px 0px;
+
+        div[role="radiogroup"] {
+            gap: 8px;
+        }
+        
+        div[role="radiogroup"] > label {
+            background-color: #111827;
+            border: 1px solid #1F2937;
+            border-radius: 8px;
+            padding: 10px 14px;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+        
+        div[role="radiogroup"] > label:hover {
+            border-color: #38BDF8;
+            background-color: #1E293B;
         }
         </style>
     """, unsafe_allow_html=True)

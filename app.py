@@ -26,19 +26,9 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
-# Initialize session state for navigation if not set
+# Initialize Navigation State
 if "app_mode" not in st.session_state:
     st.session_state.app_mode = "📊 Executive Dashboard"
-
-# Sidebar Brand Header
-st.sidebar.markdown("""
-    <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
-    <p style='color: #94A3B8; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
-    <hr style='border: 1px solid #1E293B; margin: 15px 0 15px 0;'>
-""", unsafe_allow_html=True)
-
-# Navigation Buttons in Sidebar acting as clean interactive tiles
-st.sidebar.markdown("<p style='color: #94A3B8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;'>Navigation Menu</p>", unsafe_allow_html=True)
 
 nav_options = [
     "📊 Executive Dashboard", 
@@ -48,11 +38,51 @@ nav_options = [
     "💸 Expenses & Owner Draws"
 ]
 
+# ==========================================
+# SIDEBAR NAVIGATION & BRANDING
+# ==========================================
+st.sidebar.markdown("""
+    <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
+    <p style='color: #94A3B8; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;'>MANAGEMENT SYSTEM</p>
+    <hr style='border: 1px solid #1E293B; margin: 15px 0 15px 0;'>
+    <p style='color: #94A3B8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;'>Quick Navigation</p>
+""", unsafe_allow_html=True)
+
 for option in nav_options:
-    if st.sidebar.button(option, use_container_width=True):
-        st.session_state.app_mode = option
+    if st.sidebar.button(option, use_container_width=True, key=f"side_{option}"):
+        if st.session_state.app_mode != option:
+            st.session_state.app_mode = option
+            st.rerun()
 
 app_mode = st.session_state.app_mode
+
+# ==========================================
+# TOP HEADER & HORIZONTAL NAVIGATION TABS
+# ==========================================
+st.markdown("""
+    <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 16px 24px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="color: #38BDF8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px;">ORCA WATER COMPANY</div>
+            <div style="color: #FFFFFF; font-size: 1.35rem; font-weight: 800; letter-spacing: -0.5px;">Enterprise Management System</div>
+        </div>
+        <div style="background-color: #1E293B; color: #34D399; font-size: 0.8rem; font-weight: 600; padding: 6px 14px; border-radius: 8px; border: 1px solid #334155;">
+            🟢 Live Database Active
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+
+# Top Tab Buttons Bar (Always visible at the top)
+top_cols = st.columns(5)
+for i, opt in enumerate(nav_options):
+    with top_cols[i]:
+        is_active = (app_mode == opt)
+        btn_label = f"📌 {opt.split(' ')[1]}" if is_active else opt.split(' ', 1)[1]
+        if st.button(btn_label, use_container_width=True, key=f"top_tab_{i}"):
+            if st.session_state.app_mode != opt:
+                st.session_state.app_mode = opt
+                st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
 
 # ==========================================
 # 1. EXECUTIVE DASHBOARD
@@ -60,7 +90,7 @@ app_mode = st.session_state.app_mode
 if app_mode == "📊 Executive Dashboard":
     st.markdown("""
         <div class="header-container">
-            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-subtitle">MODULE VIEW</div>
             <div class="header-title">Executive Dashboard (P&L Summary)</div>
         </div>
     """, unsafe_allow_html=True)
@@ -192,7 +222,7 @@ if app_mode == "📊 Executive Dashboard":
 elif app_mode == "🛍️ Sales Orders & Invoices":
     st.markdown("""
         <div class="header-container">
-            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-subtitle">MODULE VIEW</div>
             <div class="header-title">Sales Orders & Invoicing Control</div>
         </div>
     """, unsafe_allow_html=True)
@@ -213,7 +243,7 @@ elif app_mode == "🛍️ Sales Orders & Invoices":
 elif app_mode == "📦 Inventory & Raw Materials":
     st.markdown("""
         <div class="header-container">
-            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-subtitle">MODULE VIEW</div>
             <div class="header-title">Inventory & Raw Materials Ledger</div>
         </div>
     """, unsafe_allow_html=True)
@@ -230,7 +260,7 @@ elif app_mode == "📦 Inventory & Raw Materials":
 elif app_mode == "👥 Customer Directory":
     st.markdown("""
         <div class="header-container">
-            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-subtitle">MODULE VIEW</div>
             <div class="header-title">Active Customer Accounts Directory</div>
         </div>
     """, unsafe_allow_html=True)
@@ -244,7 +274,7 @@ elif app_mode == "👥 Customer Directory":
 elif app_mode == "💸 Expenses & Owner Draws":
     st.markdown("""
         <div class="header-container">
-            <div class="header-subtitle">ORCA WATER COMPANY MANAGEMENT SYSTEM</div>
+            <div class="header-subtitle">MODULE VIEW</div>
             <div class="header-title">Operating Expenses & Owner Withdrawals</div>
         </div>
     """, unsafe_allow_html=True)

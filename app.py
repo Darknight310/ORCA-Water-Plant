@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import openpyxl
 import plotly.express as px
+import os
 
 # Page Configuration
 st.set_page_config(
@@ -15,34 +16,32 @@ st.markdown("""
     <style>
     .main-header { font-size: 2.2rem; font-weight: 700; color: #1E293B; margin-bottom: 0px; }
     .sub-header { font-size: 1.1rem; color: #64748B; margin-bottom: 20px; }
-    .metric-card { background-color: #F8FAFC; padding: 20px; border-radius: 10px; border: 1px solid #E2E8F0; }
     </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-header">💧 ORCA Water Plant Management System</div>', unsafe_allow_html=True)
 st.markdown('<div class="sub-header">Reconciled Master Financial & Operational Dashboard (FY 2026 - 2027)</div>', unsafe_allow_html=True)
 
-# Load Definitive Excel Database
-EXCEL_FILE = "ORCA_Water_Plant_Master_Database_Definitive_3.xlsx"
+# Robust Path Definition for Streamlit Cloud
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EXCEL_FILE = os.path.join(BASE_DIR, "ORCA_Water_Plant_Master_Database_Definitive_3.xlsx")
 
 @st.cache_data
 def load_data(file_path):
     try:
         xls = pd.ExcelFile(file_path)
-        dashboard_pl = pd.read_excel(xls, "Dashboard_PL")
         sales_orders = pd.read_excel(xls, "Sales_Orders")
         products = pd.read_excel(xls, "Products")
         raw_materials = pd.read_excel(xls, "Raw_Materials")
         customers = pd.read_excel(xls, "Customers")
         expenses = pd.read_excel(xls, "Direct_Operating_Expenses")
         draws = pd.read_excel(xls, "Owners_Draws")
-        unpaid = pd.read_excel(xls, "Unpaid_Invoices")
-        return xls.sheet_names, sales_orders, products, raw_materials, customers, expenses, draws, unpaid
+        return sales_orders, products, raw_materials, customers, expenses, draws
     except Exception as e:
-        st.error(f"Error loading Excel file: {e}")
-        return None, None, None, None, None, None, None, None
+        st.error(f"Error loading Excel file from path `{file_path}`: {e}")
+        return None, None, None, None, None, None
 
-sheets, sales_orders, products, raw_materials, customers, expenses, draws, unpaid = load_data(EXCEL_FILE)
+sales_orders, products, raw_materials, customers, expenses, draws = load_data(EXCEL_FILE)
 
 if sales_orders is not None:
     # Sidebar Navigation
@@ -139,4 +138,4 @@ if sales_orders is not None:
             st.dataframe(draws, use_container_width=True, hide_index=True)
 
 else:
-    st.warning("⚠️ Please ensure `ORCA_Water_Plant_Master_Database_Definitive_3.xlsx` is uploaded to your GitHub repository.")
+    st.warning("⚠️ Please check the file path or ensure the Excel file is present.")

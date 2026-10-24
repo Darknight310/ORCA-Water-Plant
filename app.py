@@ -26,6 +26,10 @@ except Exception as e:
     st.error(f"⚠️ Error reading database file: {e}")
     st.stop()
 
+# Initialize session state for navigation if not set
+if "app_mode" not in st.session_state:
+    st.session_state.app_mode = "📊 Executive Dashboard"
+
 # Sidebar Brand Header
 st.sidebar.markdown("""
     <h2 style='color: #FFFFFF; font-size: 1.1rem; font-weight: 800; margin: 0; letter-spacing: -0.5px;'>ORCA WATER COMPANY</h2>
@@ -33,14 +37,22 @@ st.sidebar.markdown("""
     <hr style='border: 1px solid #1E293B; margin: 15px 0 15px 0;'>
 """, unsafe_allow_html=True)
 
-# Navigation Radio Buttons
-app_mode = st.sidebar.radio("Navigation", [
+# Navigation Buttons in Sidebar acting as clean interactive tiles
+st.sidebar.markdown("<p style='color: #94A3B8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;'>Navigation Menu</p>", unsafe_allow_html=True)
+
+nav_options = [
     "📊 Executive Dashboard", 
     "🛍️ Sales Orders & Invoices", 
     "📦 Inventory & Raw Materials", 
     "👥 Customer Directory", 
     "💸 Expenses & Owner Draws"
-], label_visibility="collapsed")
+]
+
+for option in nav_options:
+    if st.sidebar.button(option, use_container_width=True):
+        st.session_state.app_mode = option
+
+app_mode = st.session_state.app_mode
 
 # ==========================================
 # 1. EXECUTIVE DASHBOARD

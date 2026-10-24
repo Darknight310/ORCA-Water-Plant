@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import time
 
 # Import modular components
 from styles import apply_custom_styles
@@ -17,6 +18,46 @@ st.set_page_config(
 
 # Apply Styling
 apply_custom_styles()
+
+# ==========================================
+# SPLASH SCREEN / LOADING ANIMATION (ON FIRST LOAD)
+# ==========================================
+if "loaded" not in st.session_state:
+    st.session_state.loaded = False
+
+if not st.session_state.loaded:
+    placeholder = st.empty()
+    with placeholder.container():
+        st.markdown("""
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 70vh; text-align: center;">
+                <div style="font-size: 3rem; margin-bottom: 15px; animation: bounce 1.5s infinite;">💧</div>
+                <h2 style='color: #FFFFFF; font-size: 1.8rem; font-weight: 800; margin-bottom: 5px;'>ORCA WATER COMPANY</h2>
+                <p style='color: #38BDF8; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 25px;'>Initializing Plant Management System...</p>
+                
+                <div style="width: 280px; background-color: #1F2937; border-radius: 20px; overflow: hidden; padding: 3px; border: 1px solid #334155;">
+                    <div id="progress-bar" style="width: 0%; height: 12px; background: linear-gradient(90deg, #38BDF8, #34D399); border-radius: 15px; transition: width 0.4s ease;"></div>
+                </div>
+            </div>
+            
+            <style>
+            @keyframes bounce {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-10px); }
+            }
+            </style>
+        """, unsafe_allow_html=True)
+        
+        # Simulate loading steps with visual progress
+        progress_bar = st.progress(0)
+        for percent_complete in range(100):
+            time.sleep(0.01)
+            progress_bar.progress(percent_complete + 1)
+        
+        progress_bar.empty()
+        time.sleep(0.2)
+    
+    st.session_state.loaded = True
+    st.rerun()
 
 # Load Database & Session State
 try:
@@ -71,7 +112,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Top Tab Buttons Bar (Always visible at the top)
+# Top Tab Buttons Bar
 top_cols = st.columns(5)
 for i, opt in enumerate(nav_options):
     with top_cols[i]:

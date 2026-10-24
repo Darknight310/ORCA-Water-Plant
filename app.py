@@ -79,24 +79,71 @@ if app_mode == "📊 Executive Dashboard":
     col_left, col_right = st.columns([3, 2], gap="large")
     
     with col_left:
-        st.markdown("### 📋 Master Profit & Loss Breakdown")
-        pnl_data = {
-            "Financial Category": [
-                "Gross Sales Revenue", "Less: Total Discounts Allowed", "Net Sales Revenue",
-                "Less: Cost of Goods Sold (COGS)", "Gross Profit", "Less: Direct Operating Expenses",
-                "Operating Net Profit", "Less: Owner Personal Draws", "FINAL NET CASH FLOW"
-            ],
-            "Amount (PKR)": [
-                "192,320.00", "-6,190.00", "186,130.00", 
-                "-136,053.54", "50,076.46", "-11,760.00", 
-                "38,316.46", "-20,350.00", "17,966.46"
-            ],
-            "% of Revenue": [
-                "103.3%", "-3.3%", "100.0%", "-73.1%", "26.9%", "-6.3%", "20.6%", "-10.9%", "9.6%"
-            ]
-        }
-        st.dataframe(pd.DataFrame(pnl_data), use_container_width=True, hide_index=True)
-
+        st.markdown("""
+            <div style="background-color: #111827; border: 1px solid #1F2937; border-radius: 12px; padding: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #FFFFFF; font-size: 1.15rem; font-weight: 700; margin: 0;">Master Profit & Loss Breakdown</h3>
+                    <span style="background-color: #1E293B; color: #38BDF8; font-size: 0.75rem; font-weight: 600; padding: 4px 12px; border-radius: 6px; border: 1px solid #334155;">Official Baseline</span>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 1px solid #1F2937; color: #94A3B8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                            <th style="text-align: left; padding-bottom: 10px;">Financial Category</th>
+                            <th style="text-align: right; padding-bottom: 10px;">Amount (PKR)</th>
+                            <th style="text-align: right; padding-bottom: 10px;">% of Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #FFFFFF; font-weight: 600;">Gross Sales Revenue</td>
+                            <td style="text-align: right; color: #FFFFFF; font-weight: 600;">192,320.00</td>
+                            <td style="text-align: right; color: #94A3B8;">103.3%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #FBBF24;">Less: Total Discounts Allowed</td>
+                            <td style="text-align: right; color: #FBBF24;">-6,190.00</td>
+                            <td style="text-align: right; color: #FBBF24;">-3.3%</td>
+                        </tr>
+                        <tr style="background-color: #162032; border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 10px; color: #34D399; font-weight: 600;">Net Sales Revenue</td>
+                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">186,130.00</td>
+                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">100.0%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #F87171;">Less: Cost of Goods Sold (COGS)</td>
+                            <td style="text-align: right; color: #F87171;">-136,053.54</td>
+                            <td style="text-align: right; color: #F87171;">-73.1%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #FFFFFF; font-weight: 600;">Gross Profit</td>
+                            <td style="text-align: right; color: #38BDF8; font-weight: 600;">50,076.46</td>
+                            <td style="text-align: right; color: #FFFFFF; font-weight: 600;">26.9%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #FBBF24;">Less: Direct Operating Expenses</td>
+                            <td style="text-align: right; color: #FBBF24;">-11,760.00</td>
+                            <td style="text-align: right; color: #FBBF24;">-6.3%</td>
+                        </tr>
+                        <tr style="background-color: #162032; border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 10px; color: #34D399; font-weight: 600;">Operating Net Profit</td>
+                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">38,316.46</td>
+                            <td style="text-align: right; padding: 10px; color: #34D399; font-weight: 600;">20.6%</td>
+                        </tr>
+                        <tr style="border-bottom: 1px solid #1F2937;">
+                            <td style="padding: 12px 0; color: #C084FC;">Less: Owner Personal Draws</td>
+                            <td style="text-align: right; color: #C084FC;">-20,350.00</td>
+                            <td style="text-align: right; color: #C084FC;">-10.9%</td>
+                        </tr>
+                        <tr style="background-color: #1E2640;">
+                            <td style="padding: 12px 10px; color: #38BDF8; font-weight: 700;">Net Retained Cash Flow</td>
+                            <td style="text-align: right; padding: 10px; color: #FFFFFF; font-weight: 700;">17,966.46</td>
+                            <td style="text-align: right; padding: 10px; color: #38BDF8; font-weight: 700;">9.7%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        """, unsafe_allow_html=True)
+        
     with col_right:
         st.markdown("### 📊 Cost & Expense Breakdown")
         st.markdown("<p style='color: #94A3B8; font-size: 0.85rem; margin-top: -5px;'>Visual allocation of plant capital outflows.</p>", unsafe_allow_html=True)

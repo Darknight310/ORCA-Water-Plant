@@ -143,7 +143,6 @@ if app_mode == "📊 Executive Dashboard":
                 </table>
             </div>
         """, unsafe_allow_html=True)
-        
     with col_right:
         st.markdown("### 📊 Cost & Expense Breakdown")
         st.markdown("<p style='color: #94A3B8; font-size: 0.85rem; margin-top: -5px;'>Visual allocation of plant capital outflows.</p>", unsafe_allow_html=True)

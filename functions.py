@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import io
 from datetime import date
 
 def render_sales_form():
@@ -59,3 +60,27 @@ def render_customer_form():
                 st.session_state.customers_df = pd.concat([st.session_state.customers_df, pd.DataFrame([new_c])], ignore_index=True)
                 st.success("Customer added successfully!")
                 st.rerun()
+
+def convert_pnl_to_excel():
+    pnl_export_data = {
+        "Financial Category": [
+            "Gross Sales Revenue", "Less: Total Discounts Allowed", "Net Sales Revenue",
+            "Less: Cost of Goods Sold (COGS)", "Gross Profit", "Less: Direct Operating Expenses",
+            "Operating Net Profit", "Less: Owner Personal Draws", "Net Retained Cash Flow"
+        ],
+        "Amount (PKR)": [
+            192320.00, -6190.00, 186130.00, 
+            -136053.54, 50076.46, -11760.00, 
+            38316.46, -20350.00, 17966.46
+        ],
+        "% of Revenue": [
+            "103.3%", "-3.3%", "100.0%", "-73.1%", "26.9%", "-6.3%", "20.6%", "-10.9%", "9.7%"
+        ]
+    }
+    df = pd.DataFrame(pnl_export_data)
+    
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Master_PnL')
+    processed_data = output.getvalue()
+    return processed_data

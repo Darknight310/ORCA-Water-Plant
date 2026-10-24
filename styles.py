@@ -35,28 +35,19 @@ def apply_custom_styles():
             margin-bottom: 4px;
         }
 
-        /* Sidebar Styling & Clean Navigation List */
+        /* Metric Tile Containers */
+        [data-testid="stMetric"] {
+            background-color: #111827;
+            border: 1px solid #1F2937;
+            padding: 16px 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Sidebar Styling */
         [data-testid="stSidebar"] {
             background-color: #0B0F17;
             border-right: 1px solid #1F2937;
-        }
-
-        div[role="radiogroup"] {
-            gap: 8px;
-        }
-        
-        div[role="radiogroup"] > label {
-            background-color: #111827;
-            border: 1px solid #1F2937;
-            border-radius: 8px;
-            padding: 10px 14px;
-            width: 100%;
-            transition: all 0.2s ease;
-        }
-        
-        div[role="radiogroup"] > label:hover {
-            border-color: #38BDF8;
-            background-color: #1E293B;
         }
         </style>
     """, unsafe_allow_html=True)

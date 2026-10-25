@@ -7,8 +7,7 @@ import streamlit as st
 import db
 import ui
 
-st.set_page_config(page_title="ORCA Water", page_icon="💧", layout="wide",
-                   initial_sidebar_state="expanded")
+st.set_page_config(page_title="ORCA Water", layout="wide", initial_sidebar_state="collapsed")
 ui.inject_css()
 
 
@@ -21,21 +20,20 @@ def secrets_ok():
 
 if not secrets_ok():
     st.error("The app's secrets are not set yet.")
-    st.markdown("In Streamlit: **Manage app → Settings → Secrets**, then add "
+    st.markdown("In Streamlit: **Manage App → Settings → Secrets**, then add "
                 "`SUPABASE_URL`, `SUPABASE_KEY` and `APP_PASSWORD`.")
     st.stop()
 
 if not st.session_state.get("auth"):
     _, mid, _ = st.columns([1, 1.1, 1])
     with mid:
-        st.markdown("<div style='height:12vh'></div>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:2.6rem'>💧</div>"
+        st.markdown("<div style='height:12vh'></div>"
                     "<div class='pg-title'>ORCA Water</div>"
-                    "<div class='pg-sub'>Plant management · sign in to continue</div>",
+                    "<div class='pg-sub'>Plant Management · Sign In To Continue</div>",
                     unsafe_allow_html=True)
         with st.form("login"):
             pw = st.text_input("Password", type="password")
-            go = st.form_submit_button("Sign in", type="primary")
+            go = st.form_submit_button("Sign In", type="primary")
         if go:
             if hmac.compare_digest(pw.encode(), str(st.secrets["APP_PASSWORD"]).encode()):
                 st.session_state["auth"] = True
@@ -52,21 +50,23 @@ pages = [
     st.Page("views/stock.py", title="Stock & Production", icon=":material/inventory_2:"),
     st.Page("views/expenses.py", title="Expenses & Draws", icon=":material/payments:"),
 ]
-nav = st.navigation(pages)
+try:
+    nav = st.navigation(pages, position="top")
+except TypeError:
+    nav = st.navigation(pages)
 
 with st.sidebar:
-    st.divider()
     st.caption("Backup")
-    if st.button("Prepare Excel backup"):
+    if st.button("Prepare Excel Backup"):
         try:
             st.session_state["backup"] = db.export_all()
         except Exception as e:
             st.error("Backup failed: " + str(e))
     if "backup" in st.session_state:
-        st.download_button("Download backup", st.session_state["backup"],
+        st.download_button("Download Backup", st.session_state["backup"],
                            file_name="ORCA_backup_" + dt.date.today().isoformat() + ".xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    if st.button("Sign out"):
+    if st.button("Sign Out"):
         st.session_state.clear()
         st.rerun()
 

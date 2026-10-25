@@ -5,8 +5,9 @@ import streamlit as st
 
 import db
 
-ACCENT = "#0E7490"
-PALETTE = ["#0E7490", "#F59E0B", "#E11D48", "#7C3AED", "#10B981"]
+ACCENT = "#38BDF8"
+PALETTE = ["#38BDF8", "#FBBF24", "#F87171", "#C084FC", "#34D399"]
+GRID = "rgba(148,163,184,.18)"
 
 CSS = """
 <style>
@@ -14,7 +15,6 @@ CSS = """
 .stApp, .stApp h1, .stApp h2, .stApp h3, .stApp h4, .stApp p, .stApp label,
 .stApp input, .stApp textarea, .stApp button { font-family: 'Inter', -apple-system, 'Segoe UI', sans-serif; }
 #MainMenu, footer { visibility: hidden; }
-header[data-testid="stHeader"] { background: rgba(247,249,251,.88); backdrop-filter: blur(10px); }
 .block-container { padding-top: 5rem; padding-bottom: 3rem; max-width: 1280px; }
 
 /* smooth transitions between pages and sections */
@@ -26,46 +26,66 @@ header[data-testid="stHeader"] { background: rgba(247,249,251,.88); backdrop-fil
 .pg-sub { opacity: .6; margin: .3rem 0 1.4rem 0; font-size: .95rem; }
 h4 { font-weight: 700; letter-spacing: -0.01em; }
 
-/* soft rounded surfaces */
-.card, [data-testid="stMetric"], [data-testid="stExpander"], .tile {
-  background: #FFFFFF; border: 1px solid rgba(15,23,42,.07); border-radius: 20px;
-  box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 10px 28px rgba(15,23,42,.05); }
+/* dark cards: each one sets its own background AND text colour, so it is readable on any theme */
+.card, .tile, [data-testid="stMetric"] {
+  background: #111827; color: #F8FAFC; border: 1px solid #1F2937; border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.22); }
 .card { padding: 20px 22px; }
 [data-testid="stMetric"] { padding: 18px 20px; min-height: 112px; }
-[data-testid="stMetricLabel"] p { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; opacity: .65; }
-[data-testid="stMetricValue"] { font-weight: 800; letter-spacing: -0.02em; }
-[data-testid="stExpander"] { overflow: hidden; }
-[data-testid="stDataFrame"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(15,23,42,.08); }
+[data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p { color: #94A3B8 !important; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div { color: #FFFFFF !important; font-weight: 800; letter-spacing: -0.02em; }
+[data-testid="stMetricDelta"], [data-testid="stMetricDelta"] div { color: #94A3B8 !important; }
+[data-testid="stExpander"] { border-radius: 16px; overflow: hidden; }
+[data-testid="stDataFrame"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(148,163,184,.25); }
 .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button { border-radius: 12px; font-weight: 600; padding: .5rem 1.15rem; }
 [data-baseweb="input"], [data-baseweb="select"] > div, [data-baseweb="textarea"] { border-radius: 12px !important; }
-[data-testid="stSidebar"] { border-right: 1px solid rgba(15,23,42,.08); }
 
-/* dashboard tiles (whole tile is a link to its page) */
+/* dashboard tiles (the whole tile is a link to its page) */
 [class*="st-key-tile_"] { position: relative; gap: 0 !important; }
-[class*="st-key-tile_"] [data-testid="stElementContainer"],
-[class*="st-key-tile_"] [data-testid="stPageLink"] { position: static !important; height: 0; margin: 0; padding: 0; overflow: visible; }
+[class*="st-key-tile_"] [data-testid="stElementContainer"] { animation: none; }
+[class*="st-key-tile_"] > [data-testid="stElementContainer"]:last-child { position: static !important; height: 0; margin: 0 !important; padding: 0 !important; overflow: visible; }
+[class*="st-key-tile_"] [data-testid="stPageLink"] { position: static !important; height: 0; overflow: visible; }
 [class*="st-key-tile_"] a { position: absolute; inset: 0; opacity: 0; z-index: 5; border-radius: 20px; }
-.tile { padding: 18px 20px; min-height: 124px; transition: transform .2s ease, box-shadow .2s ease; }
-[class*="st-key-tile_"]:hover .tile { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(15,23,42,.05), 0 16px 34px rgba(14,116,144,.14); }
-.tl { font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; opacity: .62; }
-.tv { font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .35rem; line-height: 1.15; }
-.ts { font-size: .82rem; opacity: .6; margin-top: .45rem; }
+.tile { padding: 18px 20px; min-height: 124px; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
+[class*="st-key-tile_"]:hover .tile { transform: translateY(-3px); border-color: #38BDF8; box-shadow: 0 16px 34px rgba(56,189,248,.16); }
+.tl { color: #94A3B8; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.tv { color: #FFFFFF; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .35rem; line-height: 1.15; }
+.ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; }
 
 /* profit & loss table */
 .pnl { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: .95rem; }
-.pnl th { text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; opacity: .5; padding: .3rem 1rem .7rem; }
+.pnl th { color: #94A3B8; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .3rem 1rem .7rem; }
 .pnl th.r, .pnl td.r { text-align: right; }
 .pnl td { padding: .95rem 1rem; font-weight: 600; }
 .pnl td.r { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pnl tr.hl td { background: rgba(15,23,42,.04); font-weight: 700; }
+.pnl tr.hl td { background: #162032; font-weight: 700; }
+.pnl tr.hl.hb td { background: #1E2640; }
 .pnl tr.hl td:first-child { border-radius: 14px 0 0 14px; }
 .pnl tr.hl td:last-child { border-radius: 0 14px 14px 0; }
-.pnl tr.hl.t-green td { background: rgba(4,120,87,.08); }
-.pnl tr.hl.t-blue td { background: rgba(29,78,216,.08); }
-.pnl tr.hl.t-cyan td { background: rgba(14,116,144,.08); }
-.t-ink { color: #0F172A; } .t-amber { color: #B45309; } .t-green { color: #047857; } .t-rose { color: #BE123C; }
-.t-cyan { color: #0E7490; } .t-purple { color: #7E22CE; } .t-blue { color: #1D4ED8; }
-.pnl td.pc { opacity: .75; width: 90px; }
+.t-ink { color: #FFFFFF; } .t-muted { color: #94A3B8; } .t-amber { color: #FBBF24; } .t-green { color: #34D399; }
+.t-rose { color: #F87171; } .t-cyan { color: #38BDF8; } .t-purple { color: #C084FC; } .t-blue { color: #60A5FA; }
+.pnl td.pc { width: 90px; }
+
+/* phone layout: switches automatically on screens up to 768px wide */
+@media (max-width: 768px) {
+  .block-container { padding: 4.2rem .8rem 2rem .8rem; }
+  .pg-title { font-size: 1.5rem; }
+  .tile { min-height: 104px; padding: 14px 14px; }
+  .tv { font-size: 1.25rem; }
+  .tl { font-size: .66rem; }
+  [data-testid="stMetric"] { min-height: 92px; padding: 14px 16px; }
+  [data-testid="stMetricValue"], [data-testid="stMetricValue"] div { font-size: 1.3rem; }
+  .card { padding: 14px 12px; }
+  .pnl { font-size: .82rem; }
+  .pnl td { padding: .7rem .5rem; }
+  .pnl th { padding: .3rem .5rem .6rem; }
+  .pnl td.pc { width: auto; }
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"],
+  [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) > [data-testid="column"] {
+    flex: 1 1 calc(50% - .7rem) !important; min-width: calc(50% - .7rem) !important; }
+}
 </style>
 """
 
@@ -127,14 +147,14 @@ def tile(key, label, value, sub, target):
 
 
 def pnl_table(rows):
-    """rows: (label, amount, percent, tone, highlighted)"""
+    """rows: (label, amount, percent, label colour, amount colour, percent colour, highlighted)"""
     html = ("<table class='pnl'><tr><th>Financial Category</th><th class='r'>Amount (PKR)</th>"
             "<th class='r'>% Of Net Sales</th></tr>")
-    for label, amount, pct, tone, hl in rows:
+    for label, amount, pct, lt, at, pt, hl in rows:
         shown = money(amount, 2) if amount >= 0 else "-" + money(-amount, 2)
-        cls = ("hl " if hl else "") + "t-" + tone
-        html += ("<tr class='" + cls + "'><td class='t-" + tone + "'>" + label + "</td><td class='r t-" + tone + "'>" +
-                 shown + "</td><td class='r pc t-" + tone + "'>" + f"{pct:.1f}%" + "</td></tr>")
+        cls = ("hl " + ("hb" if lt == "blue" else "")) if hl else ""
+        html += ("<tr class='" + cls + "'><td class='t-" + lt + "'>" + label + "</td><td class='r t-" + at + "'>" +
+                 shown + "</td><td class='r pc t-" + pt + "'>" + f"{pct:.1f}%" + "</td></tr>")
     html += "</table>"
     st.markdown("<div class='card'>" + html + "</div>", unsafe_allow_html=True)
 
@@ -144,10 +164,11 @@ def chart(fig):
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                       margin=dict(t=10, b=10, l=10, r=10), height=320,
                       legend=dict(orientation="h", y=-0.1))
+    cfg = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
     try:
-        st.plotly_chart(fig, width="stretch")
+        st.plotly_chart(fig, width="stretch", config=cfg)
     except Exception:
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, use_container_width=True, config=cfg)
 
 
 def altair(ch):
@@ -155,6 +176,23 @@ def altair(ch):
         st.altair_chart(ch, width="stretch")
     except Exception:
         st.altair_chart(ch, use_container_width=True)
+
+
+def bar_chart(df, x, y, horizontal=False, height=300):
+    """Soft, rounded bars. Not interactive, so scrolling the page never moves the chart."""
+    import altair as alt
+    base = alt.Chart(df)
+    if horizontal:
+        ch = base.mark_bar(cornerRadiusEnd=10, size=22, color=ACCENT, opacity=0.92).encode(
+            y=alt.Y(x + ":N", sort="-x", axis=alt.Axis(title=None, domain=False, ticks=False, labelLimit=240)),
+            x=alt.X(y + ":Q", axis=alt.Axis(title=None, domain=False, ticks=False, gridColor=GRID, format="~s")),
+            tooltip=[x, alt.Tooltip(y + ":Q", format=",.0f")])
+    else:
+        ch = base.mark_bar(cornerRadiusTopLeft=12, cornerRadiusTopRight=12, size=38, color=ACCENT, opacity=0.92).encode(
+            x=alt.X(x + ":N", sort=None, axis=alt.Axis(title=None, labelAngle=0, domain=False, ticks=False)),
+            y=alt.Y(y + ":Q", axis=alt.Axis(title=None, domain=False, ticks=False, gridColor=GRID, format="~s")),
+            tooltip=[x, alt.Tooltip(y + ":Q", format=",.0f")])
+    altair(ch.properties(height=height).configure_view(strokeWidth=0))
 
 
 # --------------------------------------------------------------------- tables
@@ -260,7 +298,7 @@ def _edit_form(key, table_name, rec, fields, validate):
 
 
 def entity_table(key, df, columns, table=None, fields=None, label=None, on_edit=None, on_delete=None,
-                 extras=None, detail=None, size=25, validate=None, can_edit=None, can_delete=None):
+                 extras=None, detail=None, size=200, validate=None, can_edit=None, can_delete=None):
     """A table you click a row in. Action buttons appear ABOVE the table for the selected row.
 
     columns: list of (header, column name or function(record), decimals or None)

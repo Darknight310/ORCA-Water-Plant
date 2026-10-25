@@ -24,6 +24,11 @@ if not secrets_ok():
                 "`SUPABASE_URL`, `SUPABASE_KEY` and `APP_PASSWORD`.")
     st.stop()
 
+@st.cache_resource
+def _guard():
+    return {"fails": [], "locked_until": 0.0}
+
+
 if not st.session_state.get("auth"):
     _, mid, _ = st.columns([1, 1.1, 1])
     with mid:
@@ -31,16 +36,26 @@ if not st.session_state.get("auth"):
                     "<div class='pg-title'>ORCA Water</div>"
                     "<div class='pg-sub'>Plant Management · Sign In To Continue</div>",
                     unsafe_allow_html=True)
-        with st.form("login"):
-            pw = st.text_input("Password", type="password")
-            go = st.form_submit_button("Sign In", type="primary")
-        if go:
-            if hmac.compare_digest(pw.encode(), str(st.secrets["APP_PASSWORD"]).encode()):
-                st.session_state["auth"] = True
-                st.rerun()
-            else:
-                time.sleep(1)
-                st.error("Wrong password.")
+        guard = _guard()
+        now = time.time()
+        if now < guard["locked_until"]:
+            st.error("Too many wrong attempts. Try again in " + str(int((guard["locked_until"] - now) // 60) + 1) + " minute(s).")
+        else:
+            with st.form("login"):
+                pw = st.text_input("Password", type="password")
+                go = st.form_submit_button("Sign In", type="primary")
+            if go:
+                if hmac.compare_digest(pw.encode(), str(st.secrets["APP_PASSWORD"]).encode()):
+                    guard["fails"] = []
+                    st.session_state["auth"] = True
+                    st.rerun()
+                else:
+                    time.sleep(1)
+                    guard["fails"] = [t for t in guard["fails"] if now - t < 600] + [now]
+                    if len(guard["fails"]) >= 5:
+                        guard["locked_until"] = now + 600
+                        guard["fails"] = []
+                    st.error("Wrong password.")
     st.stop()
 
 pages = [

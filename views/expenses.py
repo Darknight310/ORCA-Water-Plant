@@ -84,8 +84,9 @@ else:
     if op.empty:
         st.info("No plant expenses yet.")
     else:
-        by = op.groupby("category")["amount"].sum().sort_values(ascending=False)
-        st.bar_chart(by, color=ui.ACCENT)
+        by = op.groupby("category")["amount"].sum().sort_values(ascending=False).reset_index()
+        by.columns = ["Category", "Amount"]
+        ui.bar_chart(by, "Category", "Amount", horizontal=True, height=max(220, 46 * len(by)))
         m = op.assign(month=pd.to_datetime(op["expense_date"]).dt.strftime("%Y-%m"))
         pivot = m.pivot_table(index="category", columns="month", values="amount", aggfunc="sum", fill_value=0)
         pivot["Total"] = pivot.sum(axis=1)

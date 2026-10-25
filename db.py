@@ -9,6 +9,7 @@ METHODS = ["Cash", "Bank Transfer", "Easypaisa / JazzCash", "Cheque", "Other"]
 EXPORT_SHEETS = ["customers", "products", "raw_materials", "recipe", "invoices", "invoice_lines",
                  "payments", "purchases", "production", "damages", "expenses",
                  "v_invoice_summary", "v_raw_stock", "v_product_stock"]
+OPTIONAL_SHEETS = ["suppliers", "sale_orders", "sale_order_lines"]
 
 
 @st.cache_resource
@@ -54,6 +55,22 @@ def delete(table, id_):
     st.cache_data.clear()
 
 
+def update_where(table, col, val, data):
+    _client().table(table).update(data).eq(col, val).execute()
+    st.cache_data.clear()
+
+
+def delete_where(table, col, val):
+    _client().table(table).delete().eq(col, val).execute()
+    st.cache_data.clear()
+
+
+def delete_ids(table, ids):
+    if ids:
+        _client().table(table).delete().in_("id", [int(i) for i in ids]).execute()
+        st.cache_data.clear()
+
+
 def name_map(df, key="name"):
     if df is None or df.empty:
         return {}
@@ -76,7 +93,10 @@ def export_all():
     """Every table in one Excel file, for your own backup."""
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
-        for t in EXPORT_SHEETS:
-            df = get(t, order="id")
+        for t in EXPORT_SHEETS + OPTIONAL_SHEETS:
+            try:
+                df = get(t, order="id")
+            except Exception:
+                continue
             df.to_excel(xw, sheet_name=t[:31], index=False)
     return buf.getvalue()

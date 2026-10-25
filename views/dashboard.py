@@ -1,4 +1,3 @@
-import altair as alt
 import pandas as pd
 import plotly.express as px
 import streamlit as st
@@ -72,16 +71,16 @@ left, right = st.columns([3, 2], gap="large")
 with left:
     st.markdown("#### Profit & Loss")
     ui.pnl_table([
-        ("Gross Sales", p["gross_sales"], pct(p["gross_sales"]), "ink", False),
-        ("Discounts", -p["discounts"], pct(-p["discounts"]), "amber", False),
-        ("Net Sales", p["net_sales"], pct(p["net_sales"]), "green", True),
-        ("Cost Of Goods Sold (COGS)", -p["cogs"], pct(-p["cogs"]), "rose", False),
-        ("Gross Profit", p["gross_margin"], pct(p["gross_margin"]), "cyan", True),
-        ("Damage & Wastage", -p["damage_loss"], pct(-p["damage_loss"]), "amber", False),
-        ("Operating Expenses", -p["operating_expenses"], pct(-p["operating_expenses"]), "amber", False),
-        ("Overall Profit", p["operating_net_profit"], pct(p["operating_net_profit"]), "green", True),
-        ("Owner Draws", -p["owner_draws"], pct(-p["owner_draws"]), "purple", False),
-        ("Current Profit", p["net_retained_profit"], pct(p["net_retained_profit"]), "blue", True),
+        ("Gross Sales", p["gross_sales"], pct(p["gross_sales"]), "ink", "ink", "muted", False),
+        ("Discounts", -p["discounts"], pct(-p["discounts"]), "amber", "amber", "amber", False),
+        ("Net Sales", p["net_sales"], pct(p["net_sales"]), "green", "green", "green", True),
+        ("Cost Of Goods Sold (COGS)", -p["cogs"], pct(-p["cogs"]), "rose", "rose", "rose", False),
+        ("Gross Profit", p["gross_margin"], pct(p["gross_margin"]), "ink", "cyan", "ink", True),
+        ("Damage & Wastage", -p["damage_loss"], pct(-p["damage_loss"]), "amber", "amber", "amber", False),
+        ("Operating Expenses", -p["operating_expenses"], pct(-p["operating_expenses"]), "amber", "amber", "amber", False),
+        ("Overall Profit", p["operating_net_profit"], pct(p["operating_net_profit"]), "ink", "green", "ink", True),
+        ("Owner Draws", -p["owner_draws"], pct(-p["owner_draws"]), "purple", "purple", "purple", False),
+        ("Current Profit", p["net_retained_profit"], pct(p["net_retained_profit"]), "blue", "blue", "blue", True),
     ])
 
 with right:
@@ -96,7 +95,7 @@ with right:
     if sum(parts.values()) > 0:
         fig = px.pie(names=list(parts.keys()), values=list(parts.values()), hole=0.62,
                      color_discrete_sequence=ui.PALETTE)
-        fig.update_traces(textinfo="percent", sort=False, marker=dict(line=dict(color="#FFFFFF", width=3)))
+        fig.update_traces(textinfo="percent", sort=False, marker=dict(line=dict(width=0)))
         ui.chart(fig)
     else:
         st.info("The chart appears once you have sales.")
@@ -112,15 +111,7 @@ with a:
         m = m.groupby("month")["net_amount"].sum().reset_index().sort_values("month")
         m["Month"] = pd.to_datetime(m["month"] + "-01").dt.strftime("%b %Y")
         m = m.rename(columns={"net_amount": "Net Sales"})[["Month", "Net Sales"]]
-        ch = (alt.Chart(m)
-              .mark_bar(cornerRadiusTopLeft=12, cornerRadiusTopRight=12, size=38, color=ui.ACCENT, opacity=0.92)
-              .encode(
-                  x=alt.X("Month:N", sort=None, axis=alt.Axis(title=None, labelAngle=0, domain=False, ticks=False)),
-                  y=alt.Y("Net Sales:Q", axis=alt.Axis(title=None, domain=False, ticks=False, gridColor="#E8EDF3", format="~s")),
-                  tooltip=["Month", alt.Tooltip("Net Sales:Q", format=",.0f")])
-              .properties(height=300)
-              .configure_view(strokeWidth=0))
-        ui.altair(ch)
+        ui.bar_chart(m, "Month", "Net Sales")
 with b:
     st.markdown("#### Balance Receivable By Customers")
     if summ.empty or owed == 0:

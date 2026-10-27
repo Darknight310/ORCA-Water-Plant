@@ -57,15 +57,27 @@ if section == "Finished Goods":
         k2.metric("Bundles In Stock", ui.money(fg["balance"].sum()))
         k3.metric("Products Running Low", str(int((fg["status"] == "LOW").sum())))
         settings_form(fg, "products", "fg", "min_stock", "bundles")
-        v = fg.assign(margin=fg["avg_rate"] - fg["std_cost"])
-        v = v[["name", "opening_stock", "produced", "sold", "damaged", "balance", "std_cost", "avg_rate",
-               "margin", "stock_value", "status"]]
-        v = ui.fmt(v, ["opening_stock", "produced", "sold", "damaged", "balance", "stock_value"])
-        v = ui.fmt(v, ["std_cost", "avg_rate", "margin"], 2)
-        v.columns = ["Product", "Opening", "Produced", "Sold", "Damaged", "In Stock", "Cost / Bundle",
-                     "Avg Sell Rate", "Margin / Bundle", "Stock Value", "Status"]
-        ui.table(v)
-        st.caption("Cost per bundle = recipe × average raw material cost. Status shows 'Set level' until you set an alert level.")
+
+        v = fg.assign(margin=fg["avg_rate"] - fg["std_cost"]).sort_values("name")
+
+        def show_details(r):
+            st.caption("Cost per bundle = recipe × average raw material cost. "
+                       "Status shows 'Set level' until you set an alert level.")
+
+        ui.entity_table(
+            "fg", v,
+            [("Code", "code", None), ("Product", "name", None), ("Opening", "opening_stock", 0),
+             ("Produced", "produced", 0), ("Sold", "sold", 0), ("Damaged", "damaged", 0),
+             ("In Stock", "balance", 0), ("Cost / Bundle", "std_cost", 2), ("Avg Sell Rate", "avg_rate", 2),
+             ("Margin / Bundle", "margin", 2), ("Stock Value", "stock_value", 0), ("Status", "status", None)],
+            table="products",
+            fields=[{"col": "name", "label": "Product Name", "required": True},
+                    {"col": "code", "label": "Code", "required": True},
+                    {"col": "min_stock", "label": "Alert Level (Min Stock, Bundles)", "kind": "num"}],
+            label=lambda r: str(r["name"]),
+            can_delete=lambda r: False)
+        st.caption("Cost per bundle = recipe × average raw material cost. Status shows 'Set level' until you set an alert level. "
+                   "Opening Stock can only be changed using Physical Count above, to keep it matching your real count.")
 
 # ============================================================== RAW MATERIALS
 elif section == "Raw Materials":

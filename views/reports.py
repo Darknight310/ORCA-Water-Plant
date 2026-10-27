@@ -25,6 +25,34 @@ if section == "Sales By Products":
         q = st.text_input("Search", placeholder="Search by product name or month, e.g. 'Aug' or '1500ml'", key="rep_search")
         qn = q.strip().lower()
 
+        # ---------- All-time totals, product-wise ----------
+        st.subheader("All-Time Totals — Product Wise")
+
+        by_prod_all = h.groupby("name").agg(Quantity=("qty", "sum"), Amount=("amount", "sum")).reset_index()
+        by_prod_all = by_prod_all.sort_values("Amount", ascending=False)
+
+        if qn:
+            filtered_all = by_prod_all[by_prod_all["name"].str.lower().str.contains(qn)]
+        else:
+            filtered_all = by_prod_all
+
+        if filtered_all.empty:
+            st.info("No products match your search.")
+        else:
+            disp_all = filtered_all.rename(columns={"name": "Product"})[["Product", "Quantity", "Amount"]]
+            total_row = pd.DataFrame([{
+                "Product": "TOTAL",
+                "Quantity": filtered_all["Quantity"].sum(),
+                "Amount": filtered_all["Amount"].sum(),
+            }])
+            disp_all = pd.concat([disp_all, total_row], ignore_index=True)
+            ui.table(ui.fmt(disp_all, ["Quantity", "Amount"], 2))
+
+        st.markdown("---")
+
+        # ---------- Month by month breakdown ----------
+        st.subheader("Month by Month Breakdown")
+
         by_month = h.groupby(["month_key", "Month"]).agg(Quantity=("qty", "sum"), Amount=("amount", "sum")).reset_index()
         by_month = by_month.sort_values("month_key", ascending=False)
         by_prod = h.groupby(["month_key", "name"]).agg(Quantity=("qty", "sum"), Amount=("amount", "sum")).reset_index()
@@ -44,6 +72,12 @@ if section == "Sales By Products":
             label = mlabel + "   ·   Qty " + ui.money(mqty, 2) + "   ·   PKR " + ui.money(mamt, 2)
             with st.expander(label, expanded=bool(qn)):
                 disp = prods.rename(columns={"name": "Product"})[["Product", "Quantity", "Amount"]]
+                month_total_row = pd.DataFrame([{
+                    "Product": "TOTAL",
+                    "Quantity": prods["Quantity"].sum(),
+                    "Amount": prods["Amount"].sum(),
+                }])
+                disp = pd.concat([disp, month_total_row], ignore_index=True)
                 ui.table(ui.fmt(disp, ["Quantity", "Amount"], 2))
 
         if not shown_any:

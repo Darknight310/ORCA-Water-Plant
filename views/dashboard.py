@@ -44,14 +44,16 @@ if not raw.empty and (raw["status"] != "Set level").any():
 if not fg.empty and (fg["status"] != "Set level").any():
     levels_set = True
 
-c1, c2, c3, c4 = st.columns(4)
+c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
     ui.tile("net", "Net Sales", "PKR " + ui.money(net), "Gross Sales PKR " + ui.money(p["gross_sales"]), SALES)
 with c2:
-    ui.tile("gp", "Gross Profit", "PKR " + ui.money(p["gross_margin"]), f"{pct(p['gross_margin']):.1f}% Of Net Sales", STOCK)
+    ui.tile("disc", "Discounts", "PKR " + ui.money(p["discounts"]), f"{pct(p['discounts']):.1f}% Of Net Sales", SALES)
 with c3:
-    ui.tile("op", "Overall Profit", "PKR " + ui.money(p["operating_net_profit"]), f"{pct(p['operating_net_profit']):.1f}% Of Net Sales", EXPENSES)
+    ui.tile("gp", "Gross Profit", "PKR " + ui.money(p["gross_margin"]), f"{pct(p['gross_margin']):.1f}% Of Net Sales", STOCK)
 with c4:
+    ui.tile("op", "Overall Profit", "PKR " + ui.money(p["operating_net_profit"]), f"{pct(p['operating_net_profit']):.1f}% Of Net Sales", EXPENSES)
+with c5:
     ui.tile("cp", "Current Profit", "PKR " + ui.money(p["net_retained_profit"]), "After Owner Draws", EXPENSES)
 
 st.write("")
@@ -61,7 +63,7 @@ with d1:
 with d2:
     ui.tile("raw", "Raw Material Stock Value", "PKR " + ui.money(raw_val), str(len(raw)) + " Items", STOCK)
 with d3:
-    ui.tile("fg", "Finished Goods Stock Value", "PKR " + ui.money(fg_val), ui.money(bundles) + " Bundles In Stock", STOCK)
+    ui.tile("fg", "Finished Goods Value", "PKR " + ui.money(fg_val), ui.money(bundles) + " Bundles In Stock", STOCK)
 with d4:
     sub = "Needs Attention" if low else ("All Stock Healthy" if levels_set else "Set Alert Levels In Stock")
     ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK)
@@ -113,26 +115,4 @@ with a:
         m = summ.assign(month=pd.to_datetime(summ["invoice_date"]).dt.strftime("%Y-%m"))
         m = m.groupby("month")["net_amount"].sum().reset_index().sort_values("month")
         m["Month"] = pd.to_datetime(m["month"] + "-01").dt.strftime("%b %Y")
-        m = m.rename(columns={"net_amount": "Net Sales"})[["Month", "Net Sales"]]
-        ui.bar_chart(m, "Month", "Net Sales")
-with b:
-    st.markdown("#### Balance Receivable By Customers")
-    if summ.empty or owed == 0:
-        st.success("Nobody owes you anything.")
-    else:
-        top = summ[summ["balance_due"] > 0].groupby("customer_name")["balance_due"].sum()
-        top = top.sort_values(ascending=False).head(8).reset_index()
-        top.columns = ["Customer", "Balance Receivable (PKR)"]
-        ui.table(ui.fmt(top, ["Balance Receivable (PKR)"]))
-
-st.write("")
-if low:
-    st.warning("Running low: " + ", ".join(low))
-negative = []
-if not raw.empty:
-    negative += raw.loc[raw["balance"] < 0, "name"].tolist()
-if not fg.empty:
-    negative += fg.loc[fg["balance"] < 0, "name"].tolist()
-if negative:
-    st.error("Negative stock for: " + ", ".join(negative) +
-             ". Check opening stock (Stock & Production, Physical Count).")
+        m = m.rename(columns={"net_amount": 

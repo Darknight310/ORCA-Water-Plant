@@ -61,6 +61,7 @@ if not st.session_state.get("auth"):
 pages = [
     st.Page("views/dashboard.py", title="Dashboard", icon=":material/space_dashboard:", default=True),
     st.Page("views/sales.py", title="Sales & Invoices", icon=":material/receipt_long:"),
+    st.Page("views/reports.py", title="Reports", icon=":material/bar_chart:"),
     st.Page("views/customers.py", title="Customers", icon=":material/groups:"),
     st.Page("views/suppliers_purchases.py", title="Suppliers & Purchases", icon=":material/local_shipping:"),
     st.Page("views/stock.py", title="Stock & Production", icon=":material/inventory_2:"),

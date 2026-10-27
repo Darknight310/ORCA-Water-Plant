@@ -49,8 +49,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .tile { padding: 18px 20px; min-height: 124px; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease; }
 [class*="st-key-tile_"]:hover .tile { transform: translateY(-3px); border-color: #38BDF8; box-shadow: 0 16px 34px rgba(56,189,248,.16); }
 .tl { color: #94A3B8; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-.tv { color: #FFFFFF; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .35rem; line-height: 1.15; }
-.ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; }
+.tv { color: #FFFFFF; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .35rem; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* profit & loss table */
 .pnl { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: .95rem; }
@@ -68,11 +69,15 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 
 /* phone layout: switches automatically on screens up to 768px wide */
 @media (max-width: 768px) {
-  .block-container { padding: 4.2rem .8rem 2rem .8rem; }
+  .block-container { padding: 5rem .8rem 2rem .8rem; }
   .pg-title { font-size: 1.5rem; }
-  .tile { min-height: 104px; padding: 14px 14px; }
-  .tv { font-size: 1.25rem; }
-  .tl { font-size: .66rem; }
+  /* every tile is exactly the same height, so rows can never overlap */
+  .tile { height: 128px; min-height: 0; padding: 12px 14px; overflow: hidden; }
+  .tl { font-size: .64rem; line-height: 1.25; min-height: 2.5em; display: -webkit-box;
+        -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tv { font-size: clamp(.95rem, 4.6vw, 1.25rem); margin-top: .25rem; }
+  .ts { font-size: .72rem; margin-top: .3rem; }
+  [class*="st-key-tile_"] { margin-bottom: .2rem; }
   [data-testid="stMetric"] { min-height: 92px; padding: 14px 16px; }
   [data-testid="stMetricValue"], [data-testid="stMetricValue"] div { font-size: 1.3rem; }
   .card { padding: 14px 12px; }

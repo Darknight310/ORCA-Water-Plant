@@ -71,6 +71,31 @@ def delete_ids(table, ids):
         st.cache_data.clear()
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def has_split():
+    """True once orca_update_2.sql has been run (purchases know where the money came from)."""
+    try:
+        _client().table("purchases").select("paid_from_sales").limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+
+def reinvest():
+    """How much sales money and profit money has gone back into raw materials."""
+    pnl = get("v_pnl")
+    pur = get("purchases", order="id")
+    cogs = float(pnl.iloc[0]["cogs"]) if not pnl.empty else 0.0
+    current = float(pnl.iloc[0]["net_retained_profit"]) if not pnl.empty else 0.0
+    from_sales = from_profit = 0.0
+    if not pur.empty and "paid_from_sales" in pur.columns:
+        from_sales = float(pur["paid_from_sales"].fillna(0).sum())
+        from_profit = float(pur["paid_from_profit"].fillna(0).sum())
+    return {"enabled": has_split(), "cogs": cogs, "current_profit": current,
+            "from_sales": from_sales, "from_profit": from_profit,
+            "left_to_reinvest": cogs - from_sales, "profit_in_hand": current - from_profit}
+
+
 def name_map(df, key="name"):
     if df is None or df.empty:
         return {}

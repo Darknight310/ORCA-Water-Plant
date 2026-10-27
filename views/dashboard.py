@@ -32,6 +32,7 @@ if not summ.empty:
 raw_val = float(raw["stock_value"].sum()) if not raw.empty else 0.0
 fg_val = float(fg["stock_value"].sum()) if not fg.empty else 0.0
 bundles = float(fg["balance"].sum()) if not fg.empty else 0.0
+total_sold = float(fg["sold"].sum()) if not fg.empty else 0.0
 low = []
 if not raw.empty:
     low += raw.loc[raw["status"] == "LOW", "name"].tolist()
@@ -45,7 +46,7 @@ if not fg.empty and (fg["status"] != "Set level").any():
 
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    ui.tile("net", "Net Sales", "PKR " + ui.money(net), "Gross PKR " + ui.money(p["gross_sales"]), SALES)
+    ui.tile("net", "Net Sales", "PKR " + ui.money(net), "Gross Sales PKR " + ui.money(p["gross_sales"]), SALES)
 with c2:
     ui.tile("gp", "Gross Profit", "PKR " + ui.money(p["gross_margin"]), f"{pct(p['gross_margin']):.1f}% Of Net Sales", STOCK)
 with c3:
@@ -54,32 +55,18 @@ with c4:
     ui.tile("cp", "Current Profit", "PKR " + ui.money(p["net_retained_profit"]), "After Owner Draws", EXPENSES)
 
 st.write("")
-d1, d2, d3, d4 = st.columns(4)
+d1, d2, d3, d4, d5 = st.columns(5)
 with d1:
     ui.tile("recv", "Balance Receivable", "PKR " + ui.money(owed), str(open_count) + " Open Invoices", SALES)
 with d2:
     ui.tile("raw", "Raw Material Stock Value", "PKR " + ui.money(raw_val), str(len(raw)) + " Items", STOCK)
 with d3:
-    ui.tile("cogs", "Cost Of Goods Sold", "PKR " + ui.money(p["cogs"]), "Replacement Cost", STOCK)
+    ui.tile("fg", "Finished Goods Stock Value", "PKR " + ui.money(fg_val), ui.money(bundles) + " Bundles In Stock", STOCK)
 with d4:
-    sub = "Needs Attention" if low else ("All Stock Healthy" if levels_set else "Set Alert Levels")
+    sub = "Needs Attention" if low else ("All Stock Healthy" if levels_set else "Set Alert Levels In Stock")
     ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK)
-
-st.write("")
-st.markdown("#### Reinvestment")
-rs = db.reinvest()
-r1, r2, r3, r4 = st.columns(4)
-r1.metric("Reinvested From Sales Money", "PKR " + ui.money(rs["from_sales"]))
-r2.metric("Left To Reinvest", "PKR " + ui.money(rs["left_to_reinvest"]),
-          "Of PKR " + ui.money(rs["cogs"]) + " Cost Of Goods Sold", delta_color="off")
-r3.metric("Reinvested From Current Profit", "PKR " + ui.money(rs["from_profit"]))
-r4.metric("Profit In Hand", "PKR " + ui.money(rs["profit_in_hand"]),
-          "Current Profit Minus Reinvested", delta_color="off")
-if rs["enabled"]:
-    st.caption("Sales money = the cost of the goods you sold. It should go back into raw materials. "
-               "Choose where each purchase's money comes from in Stock & Production, Purchases.")
-else:
-    st.info("To track where purchase money comes from, run the file orca_update_2.sql in Supabase (SQL Editor).")
+with d5:
+    ui.tile("gsold", "Total Goods Sold", ui.money(total_sold) + " Bundles", str(len(fg)) + " Products", STOCK)
 
 st.write("")
 left, right = st.columns([3, 2], gap="large")

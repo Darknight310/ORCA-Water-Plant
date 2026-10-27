@@ -164,13 +164,36 @@ elif section == "Purchases":
             cost = e.number_input("Unit Cost (PKR)", min_value=0.0, step=0.1, format="%.2f", key="pur_c_" + str(n))
             ref = f.text_input("Invoice / Reference", key="pur_r_" + str(n))
             notes = st.text_input("Notes (Optional)", key="pur_n_" + str(n))
+            total = float(qty) * float(cost)
+            rs = db.reinvest()
+            from_sales, from_profit = 0.0, 0.0
+            if rs["enabled"]:
+                src_choice = st.radio("Money Used For This Purchase", ["Sales Money", "Current Profit", "Both"],
+                                      horizontal=True, key="pur_src_" + str(n))
+                if src_choice == "Sales Money":
+                    from_sales, from_profit = total, 0.0
+                elif src_choice == "Current Profit":
+                    from_sales, from_profit = 0.0, total
+                else:
+                    from_sales = st.number_input("Part Paid From Sales Money (PKR)", min_value=0.0, step=100.0,
+                                                 key="pur_fs_" + str(n))
+                    from_profit = total - float(from_sales)
+                    st.caption("The rest, PKR " + ui.money(from_profit, 2) + ", is paid from Current Profit.")
+                st.caption("Sales money still to reinvest: PKR " + ui.money(rs["left_to_reinvest"]) +
+                           "   ·   Profit in hand: PKR " + ui.money(rs["profit_in_hand"]))
+                if from_sales > max(rs["left_to_reinvest"], 0) + 0.5:
+                    st.warning("This is more than the sales money still waiting to be reinvested.")
+                if from_profit > max(rs["profit_in_hand"], 0) + 0.5:
+                    st.warning("This is more than the profit you have in hand.")
+            else:
+                st.info("To record where the money comes from, run orca_update_2.sql in Supabase first.")
             if item:
                 r = raw[raw["name"] == item].iloc[0]
                 old_q = float(r["opening_stock"]) + float(r["purchased_qty"])
                 old_v = float(r["opening_stock"]) * float(r["opening_unit_cost"]) + float(r["purchase_value"])
                 new_q = old_q + float(qty)
                 new_avg = (old_v + float(qty) * float(cost)) / new_q if new_q else 0
-                st.caption("Total this purchase: PKR " + ui.money(qty * cost, 2) + "   ·   Average cost now: " +
+                st.caption("Total this purchase: PKR " + ui.money(total, 2) + "   ·   Average cost now: " +
                            ui.money(r["avg_cost"], 2) + "  →  after this purchase: " + ui.money(new_avg, 2))
             if st.button("Save Purchase", type="primary", key="pur_save_" + str(n)):
                 supplier = sup_new.strip() or sup_pick or None
@@ -178,12 +201,18 @@ elif section == "Purchases":
                     st.error("Choose a raw material.")
                 elif qty <= 0:
                     st.error("Enter a quantity.")
+                elif rs["enabled"] and from_sales > total + 0.01:
+                    st.error("The part paid from sales money cannot be more than the purchase total.")
                 else:
                     try:
                         rid = int(raw.loc[raw["name"] == item, "id"].iloc[0])
-                        db.insert("purchases", {"purchase_date": pdate.isoformat(), "supplier": supplier,
-                                                "raw_material_id": rid, "qty": float(qty), "unit_cost": float(cost),
-                                                "ref": ref.strip() or None, "notes": notes.strip() or None})
+                        row = {"purchase_date": pdate.isoformat(), "supplier": supplier,
+                               "raw_material_id": rid, "qty": float(qty), "unit_cost": float(cost),
+                               "ref": ref.strip() or None, "notes": notes.strip() or None}
+                        if rs["enabled"]:
+                            row["paid_from_sales"] = round(float(from_sales), 2)
+                            row["paid_from_profit"] = round(float(from_profit), 2)
+                        db.insert("purchases", row)
                         if supplier and suppliers is not None and supplier.lower() not in [x.lower() for x in sup_names]:
                             try:
                                 db.insert("suppliers", {"name": supplier})
@@ -202,18 +231,32 @@ elif section == "Purchases":
         h = pur.copy()
         h["material"] = h["raw_material_id"].map(rname)
         h["total"] = h["qty"] * h["unit_cost"]
+        split = "paid_from_sales" in h.columns
+        cols = [("Date", "purchase_date", None), ("Supplier", "supplier", None), ("Raw Material", "material", None),
+                ("Quantity", "qty", 0), ("Unit Cost", "unit_cost", 2), ("Total", "total", 0)]
+        fields = [{"col": "purchase_date", "label": "Date", "kind": "date"},
+                  {"col": "supplier", "label": "Supplier"},
+                  {"col": "raw_material_id", "label": "Raw Material", "kind": "select", "options": rname},
+                  {"col": "qty", "label": "Quantity", "kind": "num"},
+                  {"col": "unit_cost", "label": "Unit Cost (PKR)", "kind": "num", "step": 0.1},
+                  {"col": "ref", "label": "Invoice / Reference"},
+                  {"col": "notes", "label": "Notes"}]
+        if split:
+            cols += [("From Sales Money", "paid_from_sales", 0), ("From Current Profit", "paid_from_profit", 0)]
+            fields += [{"col": "paid_from_sales", "label": "Paid From Sales Money (PKR)", "kind": "num", "step": 100.0},
+                       {"col": "paid_from_profit", "label": "Paid From Current Profit (PKR)", "kind": "num", "step": 100.0}]
+        cols.append(("Reference", "ref", None))
+
+        def check_purchase(payload, rec):
+            if split:
+                tot = payload["qty"] * payload["unit_cost"]
+                paid = payload["paid_from_sales"] + payload["paid_from_profit"]
+                if paid > 0 and abs(tot - paid) > 0.5:
+                    return "The two paid-from amounts must add up to the purchase total (PKR " + ui.money(tot, 2) + ")."
+            return None
+
         ui.entity_table(
-            "pur", h,
-            [("Date", "purchase_date", None), ("Supplier", "supplier", None), ("Raw Material", "material", None),
-             ("Quantity", "qty", 0), ("Unit Cost", "unit_cost", 2), ("Total", "total", 0), ("Reference", "ref", None)],
-            table="purchases",
-            fields=[{"col": "purchase_date", "label": "Date", "kind": "date"},
-                    {"col": "supplier", "label": "Supplier"},
-                    {"col": "raw_material_id", "label": "Raw Material", "kind": "select", "options": rname},
-                    {"col": "qty", "label": "Quantity", "kind": "num"},
-                    {"col": "unit_cost", "label": "Unit Cost (PKR)", "kind": "num", "step": 0.1},
-                    {"col": "ref", "label": "Invoice / Reference"},
-                    {"col": "notes", "label": "Notes"}],
+            "pur", h, cols, table="purchases", fields=fields, validate=check_purchase,
             label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]))
 
 # ================================================================= PRODUCTION

@@ -115,4 +115,26 @@ with a:
         m = summ.assign(month=pd.to_datetime(summ["invoice_date"]).dt.strftime("%Y-%m"))
         m = m.groupby("month")["net_amount"].sum().reset_index().sort_values("month")
         m["Month"] = pd.to_datetime(m["month"] + "-01").dt.strftime("%b %Y")
-        m = m.rename(columns={"net_amount": 
+        m = m.rename(columns={"net_amount": "Net Sales"})[["Month", "Net Sales"]]
+        ui.bar_chart(m, "Month", "Net Sales")
+with b:
+    st.markdown("#### Balance Receivable By Customers")
+    if summ.empty or owed == 0:
+        st.success("Nobody owes you anything.")
+    else:
+        top = summ[summ["balance_due"] > 0].groupby("customer_name")["balance_due"].sum()
+        top = top.sort_values(ascending=False).head(8).reset_index()
+        top.columns = ["Customer", "Balance Receivable (PKR)"]
+        ui.table(ui.fmt(top, ["Balance Receivable (PKR)"]))
+
+st.write("")
+if low:
+    st.warning("Running low: " + ", ".join(low))
+negative = []
+if not raw.empty:
+    negative += raw.loc[raw["balance"] < 0, "name"].tolist()
+if not fg.empty:
+    negative += fg.loc[fg["balance"] < 0, "name"].tolist()
+if negative:
+    st.error("Negative stock for: " + ", ".join(negative) +
+             ". Check opening stock (Stock & Production, Physical Count).")

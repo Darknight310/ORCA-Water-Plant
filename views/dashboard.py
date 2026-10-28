@@ -5,7 +5,7 @@ import streamlit as st
 import db
 import ui
 
-ui.header("Dashboard", "Profit, receivables and stock at a glance. Click any tile to open its page.")
+ui.header("Dashboard", "Profit, cash, receivables and stock at a glance. Click any tile to open its page.")
 
 pnl = db.get("v_pnl")
 if pnl.empty:
@@ -16,8 +16,10 @@ p = {k: float(v) for k, v in pnl.iloc[0].items()}
 summ = db.get("v_invoice_summary", order="id")
 raw = db.get("v_raw_stock", order="id")
 fg = db.get("v_product_stock", order="id")
+cash = db.cash_in_hand()
+reinv = db.reinvest()
 
-SALES, STOCK, EXPENSES = "views/sales.py", "views/stock.py", "views/expenses.py"
+SALES, STOCK, EXPENSES, SUPPLIERS = "views/sales.py", "views/stock.py", "views/expenses.py", "views/suppliers_purchases.py"
 net = p["net_sales"]
 
 
@@ -69,6 +71,29 @@ with d4:
     ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK)
 with d5:
     ui.tile("gsold", "Total Goods Sold", ui.money(total_sold) + " Bundles", str(len(fg)) + " Products", STOCK)
+
+st.write("")
+st.markdown("#### Cash In Hand")
+st.caption("This is different from Profit above. Profit only drops when you sell something. Cash In Hand drops "
+          "the moment money actually leaves your hand — for example, the instant you pay a supplier for raw "
+          "materials, even before you've sold anything made from them.")
+e1, e2, e3, e4 = st.columns(4)
+with e1:
+    ui.tile("cashrec", "Received From Customers", "PKR " + ui.money(cash["received"]), "All Payments To Date", SALES)
+with e2:
+    ui.tile("cashpaid", "Paid To Suppliers", "PKR " + ui.money(cash["paid_suppliers"]), "Actual Cash Paid Out", SUPPLIERS)
+with e3:
+    out = cash["operating_expenses"] + cash["owner_draws"]
+    ui.tile("cashout", "Expenses + Owner Draws", "PKR " + ui.money(out), "Cash Paid Out", EXPENSES)
+with e4:
+    ui.tile("cashhand", "Cash In Hand", "PKR " + ui.money(cash["cash_in_hand"]),
+           "Received − Paid To Suppliers − Expenses − Draws", EXPENSES)
+
+if reinv["from_profit"] > 0 or reinv["from_sales"] > 0:
+    st.caption("Of the money you've put into raw materials and paid suppliers so far, PKR " +
+              ui.money(reinv["from_sales"]) + " came from sales money and PKR " + ui.money(reinv["from_profit"]) +
+              " came from your own pocket / profit money. This is just for your own insight — it never changes "
+              "your Profit & Loss above.")
 
 st.write("")
 left, right = st.columns([3, 2], gap="large")

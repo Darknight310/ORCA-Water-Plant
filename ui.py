@@ -71,6 +71,15 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .t-ink { color: #FFFFFF; } .t-muted { color: #94A3B8; } .t-amber { color: #FBBF24; } .t-green { color: #34D399; }
 .t-rose { color: #F87171; } .t-cyan { color: #38BDF8; } .t-purple { color: #C084FC; } .t-blue { color: #60A5FA; }
 
+/* donut chart legend */
+.dchip-row { display: flex; align-items: center; justify-content: space-between; padding: .6rem .3rem;
+  border-bottom: 1px solid rgba(148,163,184,.09); font-size: .86rem; }
+.dchip-row:last-child { border-bottom: none; }
+.dchip-left { display: flex; align-items: center; gap: .6rem; color: #E2E8F0; font-weight: 600; }
+.dchip-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.dchip-val { color: #F8FAFC; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dchip-pct { color: #64748B; font-size: .76rem; margin-left: .45rem; }
+
 /* phone layout: switches automatically on screens up to 768px wide */
 @media (max-width: 768px) {
   .block-container { padding: 5rem .8rem 2rem .8rem; }
@@ -91,6 +100,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   .pnl-cols, .pnl-row { grid-template-columns: 1fr 108px 58px; column-gap: .3rem; }
   .pnl-row { padding: .7rem .3rem; font-size: .8rem; }
   .pnl-cols span { font-size: .6rem; }
+  .dchip-row { font-size: .78rem; padding: .5rem .2rem; }
+  .dchip-val { font-size: .8rem; }
+  .dchip-pct { font-size: .68rem; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"],
@@ -182,15 +194,45 @@ def pnl_table(rows, title="Profit & Loss", badge="Live P&L"):
 
 
 # --------------------------------------------------------------------- charts
-def chart(fig):
+def chart(fig, height=320):
     fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      margin=dict(t=10, b=10, l=10, r=10), height=320,
+                      margin=dict(t=10, b=10, l=10, r=10), height=height,
                       legend=dict(orientation="h", y=-0.1))
     cfg = {"displayModeBar": False, "scrollZoom": False, "doubleClick": False}
     try:
         st.plotly_chart(fig, width="stretch", config=cfg)
     except Exception:
         st.plotly_chart(fig, use_container_width=True, config=cfg)
+
+
+def donut(parts, center_label="", center_value=0, height=240):
+    """A clean, borderless donut chart with the total in the middle and a
+    custom card-style legend underneath (dot + label + amount + %)."""
+    import plotly.graph_objects as go
+
+    labels = list(parts.keys())
+    values = list(parts.values())
+    total = sum(values) or 1
+    colors = (PALETTE * (len(labels) // len(PALETTE) + 1))[:len(labels)]
+
+    fig = go.Figure(data=[go.Pie(
+        labels=labels, values=values, hole=0.72, sort=False,
+        marker=dict(colors=colors, line=dict(width=0)),
+        textinfo="none",
+        hovertemplate="%{label}: PKR %{value:,.0f} (%{percent})<extra></extra>")])
+    fig.update_layout(showlegend=False, annotations=[dict(
+        text=(center_label + "<br>" if center_label else "") + "<b>" + money(center_value) + "</b>",
+        x=0.5, y=0.5, showarrow=False, font=dict(size=14, color="#F8FAFC"))])
+    chart(fig, height=height)
+
+    rows = ""
+    for lbl, val, col in zip(labels, values, colors):
+        p = (val / total * 100) if total else 0
+        rows += ("<div class='dchip-row'><div class='dchip-left'>"
+                 "<span class='dchip-dot' style='background:" + col + ";'></span>" + lbl + "</div>"
+                 "<div><span class='dchip-val'>PKR " + money(val) + "</span>"
+                 "<span class='dchip-pct'>" + f"{p:.0f}%" + "</span></div></div>")
+    st.markdown("<div class='card' style='padding:4px 16px;'>" + rows + "</div>", unsafe_allow_html=True)
 
 
 def altair(ch):

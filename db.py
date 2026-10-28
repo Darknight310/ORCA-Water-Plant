@@ -11,7 +11,7 @@ EXPORT_SHEETS = ["customers", "products", "raw_materials", "recipe", "invoices",
                  "payments", "purchases", "production", "damages", "expenses",
                  "v_invoice_summary", "v_raw_stock", "v_product_stock"]
 OPTIONAL_SHEETS = ["suppliers", "sale_orders", "sale_order_lines", "raw_material_batches",
-                   "production_batch_usage", "sale_batch_usage"]
+                   "production_batch_usage", "sale_batch_usage", "supplier_payments"]
 
 
 @st.cache_resource
@@ -205,16 +205,67 @@ def replace_batch(batch_id, qty_add):
         "qty_remaining": float(row["qty_remaining"]) + float(qty_add)})
 
 
-def record_purchase(purchase_date, supplier, raw_material_id, qty, unit_cost, ref, notes):
-    """Records a purchase AND creates its own batch, which gets used oldest-first later."""
+def record_purchase(purchase_date, supplier, raw_material_id, qty, unit_cost, ref, notes,
+                     paid_amount=None, paid_from_sales=0.0, paid_from_profit=0.0):
+    """Records a purchase AND creates its own batch, which gets used oldest-first later.
+    paid_amount/paid_from_sales/paid_from_profit are just personal tracking labels -
+    they never affect Profit & Loss. If paid_amount is not given, the purchase is
+    assumed paid in full from sales money (keeps older behaviour unchanged)."""
     raw_material_id = int(raw_material_id)
+    qty = float(qty)
+    unit_cost = float(unit_cost)
+    total = qty * unit_cost
+    if paid_amount is None:
+        paid_amount = total
+        paid_from_sales = total
+        paid_from_profit = 0.0
     batch = insert("raw_material_batches", {
         "raw_material_id": raw_material_id, "batch_date": purchase_date, "source": "Purchase",
-        "ref": ref, "qty_in": float(qty), "unit_cost": float(unit_cost), "qty_remaining": float(qty)})
+        "ref": ref, "qty_in": qty, "unit_cost": unit_cost, "qty_remaining": qty})
     bid = batch[0]["id"]
     return insert("purchases", {
         "purchase_date": purchase_date, "supplier": supplier, "raw_material_id": raw_material_id,
-        "qty": float(qty), "unit_cost": float(unit_cost), "ref": ref, "notes": notes, "batch_id": bid})
+        "qty": qty, "unit_cost": unit_cost, "ref": ref, "notes": notes, "batch_id": bid,
+        "paid_amount": float(paid_amount), "paid_from_sales": float(paid_from_sales),
+        "paid_from_profit": float(paid_from_profit)})
+
+
+def get_payables():
+    """How much is owed to each supplier: total purchased, minus whatever was paid
+    at the time of purchase, minus whatever's been paid since via Supplier Payments."""
+    pur = get("purchases", order="id")
+    if pur.empty:
+        return pd.DataFrame(columns=["supplier", "purchased", "paid_at_purchase", "paid_later", "payable"])
+    p = pur.copy()
+    p["supplier"] = p["supplier"].fillna("Unknown Supplier").astype(str).str.strip()
+    p.loc[p["supplier"] == "", "supplier"] = "Unknown Supplier"
+    p["key"] = p["supplier"].str.lower()
+    p["total"] = p["qty"] * p["unit_cost"]
+    p["paid"] = p["paid_amount"].fillna(p["total"]) if "paid_amount" in p.columns else p["total"]
+    g = p.groupby("key").agg(supplier=("supplier", "first"), purchased=("total", "sum"),
+                             paid_at_purchase=("paid", "sum")).reset_index()
+    pay = get("supplier_payments", order="id")
+    if pay is not None and not pay.empty:
+        q = pay.copy()
+        q["supplier"] = q["supplier"].fillna("Unknown Supplier").astype(str).str.strip()
+        q.loc[q["supplier"] == "", "supplier"] = "Unknown Supplier"
+        q["key"] = q["supplier"].str.lower()
+        gp = q.groupby("key").agg(paid_later=("amount", "sum")).reset_index()
+        g = g.merge(gp[["key", "paid_later"]], on="key", how="left")
+    else:
+        g["paid_later"] = 0.0
+    g["paid_later"] = g["paid_later"].fillna(0.0)
+    g["payable"] = g["purchased"] - g["paid_at_purchase"] - g["paid_later"]
+    return g[["supplier", "purchased", "paid_at_purchase", "paid_later", "payable"]]
+
+
+def record_supplier_payment(payment_date, supplier, amount, paid_from_sales, paid_from_profit, method, notes):
+    """Pays down what's owed to a supplier for earlier credit purchases. This is a
+    personal tracking label only - it never affects Profit & Loss."""
+    return insert("supplier_payments", {
+        "payment_date": payment_date, "supplier": supplier, "amount": float(amount),
+        "paid_from_sales": float(paid_from_sales), "paid_from_profit": float(paid_from_profit),
+        "method": method, "notes": notes})
 
 
 def record_production(production_date, batch_ref, product_id, bundles, notes, recipe_df):
@@ -225,155 +276,4 @@ def record_production(production_date, batch_ref, product_id, bundles, notes, re
     need = recipe_df[recipe_df["product_id"] == product_id]
     usage, total_cost = [], 0.0
     for _, rc in need.iterrows():
-        qty_needed = float(rc["qty_per_bundle"]) * bundles
-        if qty_needed <= 0:
-            continue
-        plan = consume_fifo(int(rc["raw_material_id"]), qty_needed)
-        for p in plan:
-            total_cost += p["qty"] * p["unit_cost"]
-            usage.append({"raw_material_id": int(rc["raw_material_id"]), "batch_id": p["batch_id"],
-                         "qty_used": p["qty"], "unit_cost": p["unit_cost"]})
-    prod = insert("production", {
-        "production_date": production_date, "batch_ref": batch_ref, "product_id": product_id,
-        "bundles": bundles, "notes": notes, "total_cost": total_cost, "qty_remaining": bundles})
-    pid = prod[0]["id"]
-    if usage:
-        insert("production_batch_usage", [{**u, "production_id": pid} for u in usage])
-    return pid, total_cost
-
-
-def record_raw_damage(damage_date, raw_material_id, qty, reason, notes):
-    """Raw material damage: takes the loss from the oldest batch(es), at their real cost."""
-    raw_material_id = int(raw_material_id)
-    qty = float(qty)
-    plan = consume_fifo(raw_material_id, qty)
-    total = sum(p["qty"] * p["unit_cost"] for p in plan)
-    avg_cost = total / qty if qty else 0.0
-    return insert("damages", {
-        "damage_date": damage_date, "damage_type": "Raw Material", "raw_material_id": raw_material_id,
-        "product_id": None, "qty": qty, "reason": reason, "notes": notes,
-        "unit_cost_at_time": avg_cost, "batch_id": plan[0]["batch_id"] if plan else None})
-
-
-# ======================================================= FINISHED GOODS BATCHES
-def get_fg_batches(product_id, only_available=True):
-    """Every production run for one product, oldest first - these are the finished-goods batches."""
-    df = get("production", order="production_date")
-    if df.empty:
-        return df
-    df = df[df["product_id"] == int(product_id)]
-    if only_available:
-        df = df[df["qty_remaining"] > 0]
-    return df.sort_values(["production_date", "id"]).reset_index(drop=True)
-
-
-def fg_fifo_plan(product_id, qty_needed):
-    """PREVIEW ONLY - changes nothing. Returns (plan, shortfall)."""
-    qty_needed = float(qty_needed)
-    plan, remaining = [], qty_needed
-    for _, b in get_fg_batches(product_id).iterrows():
-        if remaining <= 1e-9:
-            break
-        take = min(float(b["qty_remaining"]), remaining)
-        if take <= 0:
-            continue
-        bundles = float(b["bundles"]) or 1.0
-        unit_cost = float(b["total_cost"] or 0) / bundles
-        plan.append({"production_id": int(b["id"]), "production_date": b["production_date"],
-                     "qty": take, "unit_cost": unit_cost})
-        remaining -= take
-    return plan, max(remaining, 0.0)
-
-
-def consume_fg_fifo(product_id, qty_needed):
-    """Takes finished stock out of the oldest production run(s) first. If there isn't enough
-    recorded finished stock, it automatically creates a small catch-up production batch (at
-    the last known cost per bundle) so the numbers stay balanced. Returns the plan used."""
-    product_id = int(product_id)
-    qty_needed = float(qty_needed)
-    all_batches = get_fg_batches(product_id, only_available=False)
-    avail = all_batches[all_batches["qty_remaining"] > 0] if not all_batches.empty else all_batches
-    plan, updates, remaining = [], [], qty_needed
-    for _, b in avail.iterrows():
-        if remaining <= 1e-9:
-            break
-        take = min(float(b["qty_remaining"]), remaining)
-        if take <= 0:
-            continue
-        bundles = float(b["bundles"]) or 1.0
-        unit_cost = float(b["total_cost"] or 0) / bundles
-        plan.append({"production_id": int(b["id"]), "production_date": b["production_date"],
-                     "qty": take, "unit_cost": unit_cost})
-        updates.append((int(b["id"]), float(b["qty_remaining"]) - take))
-        remaining -= take
-    if remaining > 1e-9:
-        if not all_batches.empty:
-            last = all_batches.sort_values("production_date").iloc[-1]
-            lb = float(last["bundles"]) or 1.0
-            fallback_cost = float(last["total_cost"] or 0) / lb
-        else:
-            fallback_cost = 0.0
-        made = insert("production", {
-            "production_date": dt.date.today().isoformat(), "batch_ref": "Auto (Stock Shortfall)",
-            "product_id": product_id, "bundles": remaining,
-            "notes": "Created automatically because recorded finished-goods stock ran out",
-            "total_cost": remaining * fallback_cost, "qty_remaining": 0})
-        plan.append({"production_id": made[0]["id"], "production_date": dt.date.today().isoformat(),
-                     "qty": remaining, "unit_cost": fallback_cost})
-    for pid_, new_rem in updates:
-        _client().table("production").update({"qty_remaining": new_rem}).eq("id", pid_).execute()
-    st.cache_data.clear()
-    return plan
-
-
-def restore_fg_batches(usage_rows):
-    """Reverses previously-consumed finished-goods batch usage (adds the quantity back)."""
-    for _, u in usage_rows.iterrows():
-        row = _client().table("production").select("qty_remaining").eq("id", int(u["production_id"])).limit(1).execute().data
-        if row:
-            new_rem = float(row[0]["qty_remaining"]) + float(u["qty_used"])
-            _client().table("production").update({"qty_remaining": new_rem}).eq("id", int(u["production_id"])).execute()
-    st.cache_data.clear()
-
-
-def consume_invoice_line_fg(invoice_line_id, product_id, qty):
-    """Consumes finished-goods batches FIFO for one invoice line, remembers which batches
-    were used, and locks in the real cost of goods sold for that line. Returns the cost."""
-    plan = consume_fg_fifo(product_id, qty)
-    total = sum(p["qty"] * p["unit_cost"] for p in plan)
-    if plan:
-        insert("sale_batch_usage", [{"invoice_line_id": int(invoice_line_id), "product_id": int(product_id),
-                                     "production_id": p["production_id"], "qty_used": p["qty"],
-                                     "unit_cost": p["unit_cost"]} for p in plan])
-    update("invoice_lines", invoice_line_id, {"cogs_amount": total})
-    return total
-
-
-def reverse_invoice_lines(invoice_id):
-    """Restores finished-goods batch quantities for every line of an invoice and clears the
-    batch-usage record. Always call this BEFORE deleting or replacing an invoice's lines."""
-    il = get("invoice_lines", order="id")
-    il = il[il["invoice_id"] == int(invoice_id)]
-    if il.empty:
-        return
-    usage = get("sale_batch_usage", order="id")
-    if usage.empty:
-        return
-    line_ids = il["id"].tolist()
-    u = usage[usage["invoice_line_id"].isin(line_ids)]
-    if not u.empty:
-        restore_fg_batches(u)
-        delete_ids("sale_batch_usage", u["id"].tolist())
-
-
-def record_fg_damage(damage_date, product_id, qty, reason, notes):
-    """Finished-goods damage: takes the loss from the oldest production batch(es), at their real cost."""
-    product_id = int(product_id)
-    qty = float(qty)
-    plan = consume_fg_fifo(product_id, qty)
-    total = sum(p["qty"] * p["unit_cost"] for p in plan)
-    avg_cost = total / qty if qty else 0.0
-    return insert("damages", {
-        "damage_date": damage_date, "damage_type": "Finished Goods", "raw_material_id": None,
-        "product_id": product_id, "qty": qty, "reason": reason, "notes": notes,
-        "unit_cost_at_time": avg_cost, "fg_batch_id": plan[0]["production_id"] if plan else None})
+        qty_needed = float(rc["qty_per_bundle"]) * 

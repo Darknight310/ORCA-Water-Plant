@@ -53,19 +53,23 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* profit & loss table */
-.pnl { width: 100%; border-collapse: separate; border-spacing: 0 4px; font-size: .95rem; }
-.pnl th { color: #94A3B8; text-align: left; font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: .3rem 1rem .7rem; }
-.pnl th.r, .pnl td.r { text-align: right; }
-.pnl td { padding: .95rem 1rem; font-weight: 600; }
-.pnl td.r { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.pnl tr.hl td { background: #162032; font-weight: 700; }
-.pnl tr.hl.hb td { background: #1E2640; }
-.pnl tr.hl td:first-child { border-radius: 14px 0 0 14px; }
-.pnl tr.hl td:last-child { border-radius: 0 14px 14px 0; }
+/* profit & loss card */
+.pnl-card { padding: 22px 24px 8px; }
+.pnl-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.pnl-title { font-size: 1.05rem; font-weight: 800; color: #F8FAFC; letter-spacing: -0.01em; }
+.pnl-badge { background: rgba(56,189,248,.14); color: #7DD3FC; font-size: .68rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; padding: .32rem .75rem; border-radius: 999px; white-space: nowrap; }
+.pnl-cols, .pnl-row { display: grid; grid-template-columns: 1fr 150px 86px; align-items: center; column-gap: .6rem; }
+.pnl-cols { padding: 0 .5rem .6rem; }
+.pnl-cols span { color: #64748B; font-size: .67rem; font-weight: 700; text-transform: uppercase; letter-spacing: .07em; }
+.pnl-cols .pnl-amt, .pnl-cols .pnl-pct { text-align: right; }
+.pnl-row { padding: .9rem .5rem; border-bottom: 1px solid rgba(148,163,184,.09); font-weight: 600; font-size: .93rem; border-radius: 10px; }
+.pnl-rows .pnl-row:last-child { border-bottom: none; }
+.pnl-row.hl { background: rgba(22,32,50,.75); font-weight: 700; margin: 3px 0; }
+.pnl-row.hl.hb { background: rgba(30,38,64,.6); }
+.pnl-row .pnl-amt, .pnl-row .pnl-pct { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .t-ink { color: #FFFFFF; } .t-muted { color: #94A3B8; } .t-amber { color: #FBBF24; } .t-green { color: #34D399; }
 .t-rose { color: #F87171; } .t-cyan { color: #38BDF8; } .t-purple { color: #C084FC; } .t-blue { color: #60A5FA; }
-.pnl td.pc { width: 90px; }
 
 /* phone layout: switches automatically on screens up to 768px wide */
 @media (max-width: 768px) {
@@ -81,10 +85,12 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   [data-testid="stMetric"] { min-height: 92px; padding: 14px 16px; }
   [data-testid="stMetricValue"], [data-testid="stMetricValue"] div { font-size: 1.3rem; }
   .card { padding: 14px 12px; }
-  .pnl { font-size: .82rem; }
-  .pnl td { padding: .7rem .5rem; }
-  .pnl th { padding: .3rem .5rem .6rem; }
-  .pnl td.pc { width: auto; }
+  .pnl-card { padding: 16px 14px 6px; }
+  .pnl-title { font-size: .95rem; }
+  .pnl-badge { font-size: .6rem; padding: .25rem .55rem; }
+  .pnl-cols, .pnl-row { grid-template-columns: 1fr 108px 58px; column-gap: .3rem; }
+  .pnl-row { padding: .7rem .3rem; font-size: .8rem; }
+  .pnl-cols span { font-size: .6rem; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"],
@@ -151,17 +157,28 @@ def tile(key, label, value, sub, target):
         st.page_link(target, label="Open")
 
 
-def pnl_table(rows):
-    """rows: (label, amount, percent, label colour, amount colour, percent colour, highlighted)"""
-    html = ("<table class='pnl'><tr><th>Financial Category</th><th class='r'>Amount (PKR)</th>"
-            "<th class='r'>% Of Net Sales</th></tr>")
+def pnl_table(rows, title="Profit & Loss", badge="Live P&L"):
+    """rows: (label, amount, percent, label colour, amount colour, percent colour, highlighted)
+
+    Renders a borderless, card-style breakdown: a dark rounded card with a
+    title + small pill badge up top, then plain-text Category / Amount /
+    % Of Net Sales rows with subtle dividers and highlighted total bands.
+    """
+    body = ""
     for label, amount, pct, lt, at, pt, hl in rows:
         shown = money(amount, 2) if amount >= 0 else "-" + money(-amount, 2)
-        cls = ("hl " + ("hb" if lt == "blue" else "")) if hl else ""
-        html += ("<tr class='" + cls + "'><td class='t-" + lt + "'>" + label + "</td><td class='r t-" + at + "'>" +
-                 shown + "</td><td class='r pc t-" + pt + "'>" + f"{pct:.1f}%" + "</td></tr>")
-    html += "</table>"
-    st.markdown("<div class='card'>" + html + "</div>", unsafe_allow_html=True)
+        cls = "pnl-row" + (" hl" + (" hb" if lt == "blue" else "") if hl else "")
+        body += ("<div class='" + cls + "'><span class='t-" + lt + "'>" + label + "</span>"
+                 "<span class='pnl-amt t-" + at + "'>" + shown + "</span>"
+                 "<span class='pnl-pct t-" + pt + "'>" + f"{pct:.1f}%" + "</span></div>")
+    html = ("<div class='card pnl-card'>"
+            "<div class='pnl-head'><div class='pnl-title'>" + title + "</div>"
+            "<div class='pnl-badge'>" + badge + "</div></div>"
+            "<div class='pnl-cols'><span>Financial Category</span>"
+            "<span class='pnl-amt'>Amount (PKR)</span>"
+            "<span class='pnl-pct'>% Of Net Sales</span></div>"
+            "<div class='pnl-rows'>" + body + "</div></div>")
+    st.markdown(html, unsafe_allow_html=True)
 
 
 # --------------------------------------------------------------------- charts

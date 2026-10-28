@@ -108,6 +108,8 @@ else:
                 new_avg = (old_v + float(qty) * float(cost)) / new_q if new_q else 0
                 st.caption("Total this purchase: PKR " + ui.money(qty * cost, 2) + "   ·   Average cost now: " +
                            ui.money(r["avg_cost"], 2) + "  →  after this purchase: " + ui.money(new_avg, 2))
+                st.caption("This also creates a new batch dated " + pdate.isoformat() +
+                          ", which Production and Raw Material Damages will use oldest-first.")
             if st.button("Save Purchase", type="primary", key="pur_save_" + str(n)):
                 supplier = sup_new.strip() or sup_pick or None
                 if not item:
@@ -117,16 +119,15 @@ else:
                 else:
                     try:
                         rid = int(raw.loc[raw["name"] == item, "id"].iloc[0])
-                        db.insert("purchases", {"purchase_date": pdate.isoformat(), "supplier": supplier,
-                                                "raw_material_id": rid, "qty": float(qty), "unit_cost": float(cost),
-                                                "ref": ref.strip() or None, "notes": notes.strip() or None})
+                        db.record_purchase(pdate.isoformat(), supplier, rid, float(qty), float(cost),
+                                           ref.strip() or None, notes.strip() or None)
                         if supplier and suppliers is not None and supplier.lower() not in [x.lower() for x in sup_names]:
                             try:
                                 db.insert("suppliers", {"name": supplier})
                             except Exception:
                                 pass
                         st.session_state["pur_n"] = n + 1
-                        st.session_state["flash"] = "Purchase saved: " + ui.money(qty) + " × " + item + "."
+                        st.session_state["flash"] = "Purchase saved: " + ui.money(qty) + " × " + item + " (new batch created)."
                         st.rerun()
                     except Exception as ex:
                         st.error("Could not save: " + str(ex))
@@ -143,11 +144,11 @@ else:
             [("Date", "purchase_date", None), ("Supplier", "supplier", None), ("Raw Material", "material", None),
              ("Quantity", "qty", 0), ("Unit Cost", "unit_cost", 2), ("Total", "total", 0), ("Reference", "ref", None)],
             table="purchases",
-            fields=[{"col": "purchase_date", "label": "Date", "kind": "date"},
-                    {"col": "supplier", "label": "Supplier"},
-                    {"col": "raw_material_id", "label": "Raw Material", "kind": "select", "options": rname},
-                    {"col": "qty", "label": "Quantity", "kind": "num"},
-                    {"col": "unit_cost", "label": "Unit Cost (PKR)", "kind": "num", "step": 0.1},
+            fields=[{"col": "supplier", "label": "Supplier"},
                     {"col": "ref", "label": "Invoice / Reference"},
                     {"col": "notes", "label": "Notes"}],
-            label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]))
+            label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]),
+            can_delete=lambda r: False)
+        st.caption("Quantity and cost can't be changed here, since they've already become a batch that may be in "
+                  "use. If a supplier sends more at the same price, use 'Replace (Same Price)' in Stock & Production "
+                  "→ Batches. If something was entered completely wrong, let me know and we'll fix it directly.")

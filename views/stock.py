@@ -279,6 +279,9 @@ elif section == "Production":
                 vv = uu[["Material", "batch_id", "qty_used", "unit_cost", "Cost"]].rename(
                     columns={"batch_id": "Batch ID", "qty_used": "Quantity Used", "unit_cost": "Unit Cost"})
                 ui.table(ui.fmt(vv, ["Quantity Used", "Unit Cost", "Cost"], 2))
+            left = float(r["qty_remaining"]) if pd.notna(r.get("qty_remaining")) else None
+            if left is not None:
+                st.caption("Bundles from this run still unsold / undamaged: " + ui.money(left))
 
         ui.entity_table(
             "prd", h,
@@ -291,7 +294,8 @@ elif section == "Production":
             label=lambda r: str(r["production_date"]) + "  ·  " + str(r["product"]) + "  ·  " + ui.money(r["bundles"]),
             can_delete=lambda r: False)
         st.caption("Date, product and bundles can't be changed here, since the raw materials have already been "
-                  "taken from specific batches. If something was entered by mistake, let me know and we'll fix it directly.")
+                  "taken from specific batches, and sales now draw finished stock from this exact run. "
+                  "If something was entered by mistake, let me know and we'll fix it directly.")
 
 # =================================================================== DAMAGES
 else:
@@ -311,7 +315,6 @@ else:
         reason = e.selectbox("Reason", REASONS, key="dam_r_" + str(n))
         notes = f.text_input("Notes (Optional)", key="dam_n_" + str(n))
 
-        unit_cost = 0.0
         item_id = None
         if item:
             item_id = int(src.loc[src["name"] == item, "id"].iloc[0])
@@ -327,9 +330,19 @@ else:
                     st.caption("This will be taken from " + str(max(len(plan), 1)) + " batch(es), oldest first. "
                               "Estimated loss: PKR " + ui.money(est, 2))
             else:
-                unit_cost = float(src.loc[src["name"] == item, "std_cost"].iloc[0])
-                st.caption("Cost per unit: PKR " + ui.money(unit_cost, 2) + "   →   loss on this entry: PKR " +
-                          ui.money(unit_cost * dqty, 2))
+                if dqty > 0:
+                    plan, shortfall = db.fg_fifo_plan(item_id, dqty)
+                    est = sum(p["qty"] * p["unit_cost"] for p in plan)
+                    if shortfall > 1e-9:
+                        if plan:
+                            fallback = plan[-1]["unit_cost"]
+                        else:
+                            fallback = float(src.loc[src["id"] == item_id, "std_cost"].iloc[0])
+                        est += shortfall * fallback
+                        st.warning("Not enough finished-goods batch stock recorded for this quantity — the extra "
+                                  "amount will be added automatically as a catch-up batch at the last known cost.")
+                    st.caption("This will be taken from " + str(max(len(plan), 1)) + " production batch(es), oldest first. "
+                              "Estimated loss: PKR " + ui.money(est, 2))
 
         if st.button("Save Damage", type="primary", key="dam_save_" + str(n)):
             if not item:
@@ -341,9 +354,7 @@ else:
                     if kind == "Raw Material":
                         db.record_raw_damage(ddate.isoformat(), item_id, float(dqty), reason, notes.strip() or None)
                     else:
-                        db.insert("damages", {"damage_date": ddate.isoformat(), "damage_type": kind, "qty": float(dqty),
-                                              "reason": reason, "notes": notes.strip() or None,
-                                              "unit_cost_at_time": unit_cost, "raw_material_id": None, "product_id": item_id})
+                        db.record_fg_damage(ddate.isoformat(), item_id, float(dqty), reason, notes.strip() or None)
                     st.session_state["dam_n"] = n + 1
                     st.session_state["flash"] = "Damage recorded: " + ui.money(dqty) + " × " + item + "."
                     st.rerun()
@@ -397,13 +408,30 @@ else:
         if fg_dam.empty:
             st.info("No finished goods damages recorded yet.")
         else:
+            def show_fg_batch(r):
+                if pd.isna(r.get("fg_batch_id")):
+                    st.caption("No batch recorded for this entry.")
+                    return
+                p = db.get("production", order="id")
+                b = p[p["id"] == r["fg_batch_id"]]
+                if b.empty:
+                    st.caption("Batch not found (it may have been removed).")
+                else:
+                    bb = b.iloc[0]
+                    unit_cost = float(bb["total_cost"] or 0) / float(bb["bundles"] or 1)
+                    st.caption("Taken From Production Batch Dated " + str(bb["production_date"]) + "  ·  Batch Ref: " +
+                              str(bb["batch_ref"] or "—") + "  ·  Cost At The Time: PKR " +
+                              ui.money(unit_cost, 2) + " Per Bundle")
+
             ui.entity_table(
                 "dam_fg", fg_dam,
                 [("Date", "damage_date", None), ("Item", "item", None), ("Quantity", "qty", 0),
                  ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
                 table="damages",
-                fields=[{"col": "damage_date", "label": "Date", "kind": "date"},
-                        {"col": "qty", "label": "Quantity", "kind": "num"},
-                        {"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
+                fields=[{"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
                         {"col": "notes", "label": "Notes"}],
-                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]))
+                detail=("Which Batch Was Used", show_fg_batch),
+                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]),
+                can_delete=lambda r: False)
+            st.caption("Quantity and date can't be changed here, since the loss has already been taken from a "
+                      "specific finished-goods batch. If this was entered by mistake, let me know and we'll fix it directly.")

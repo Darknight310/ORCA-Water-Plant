@@ -1,5 +1,4 @@
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 
 import db
@@ -123,10 +122,7 @@ with right:
         "Current Profit": max(p["net_retained_profit"], 0),
     }
     if sum(parts.values()) > 0:
-        fig = px.pie(names=list(parts.keys()), values=list(parts.values()), hole=0.62,
-                     color_discrete_sequence=ui.PALETTE)
-        fig.update_traces(textinfo="percent", sort=False, marker=dict(line=dict(width=0)))
-        ui.chart(fig)
+        ui.donut(parts, center_label="Net Sales", center_value=net)
     else:
         st.info("The chart appears once you have sales.")
 

@@ -84,18 +84,48 @@ def has_split():
 
 
 def reinvest():
-    """How much sales money and profit money has gone back into raw materials."""
+    """How much sales money and profit money has gone back into raw materials - counting
+    both purchases paid at the time, and later Supplier Payments against credit purchases."""
     pnl = get("v_pnl")
     pur = get("purchases", order="id")
+    pay = get("supplier_payments", order="id")
     cogs = float(pnl.iloc[0]["cogs"]) if not pnl.empty else 0.0
     current = float(pnl.iloc[0]["net_retained_profit"]) if not pnl.empty else 0.0
     from_sales = from_profit = 0.0
     if not pur.empty and "paid_from_sales" in pur.columns:
-        from_sales = float(pur["paid_from_sales"].fillna(0).sum())
-        from_profit = float(pur["paid_from_profit"].fillna(0).sum())
+        from_sales += float(pur["paid_from_sales"].fillna(0).sum())
+        from_profit += float(pur["paid_from_profit"].fillna(0).sum())
+    if pay is not None and not pay.empty:
+        from_sales += float(pay["paid_from_sales"].fillna(0).sum())
+        from_profit += float(pay["paid_from_profit"].fillna(0).sum())
     return {"enabled": has_split(), "cogs": cogs, "current_profit": current,
             "from_sales": from_sales, "from_profit": from_profit,
             "left_to_reinvest": cogs - from_sales, "profit_in_hand": current - from_profit}
+
+
+def cash_in_hand():
+    """How much real cash is sitting in hand / bank right now - separate from Profit & Loss.
+    Buying raw materials drops this immediately (unlike Profit, which only drops at sale time)."""
+    summ = get("v_invoice_summary", order="id")
+    received = float(summ["received"].sum()) if not summ.empty else 0.0
+
+    pur = get("purchases", order="id")
+    paid_suppliers = 0.0
+    if not pur.empty:
+        total = pur["qty"] * pur["unit_cost"]
+        paid = pur["paid_amount"].fillna(total) if "paid_amount" in pur.columns else total
+        paid_suppliers += float(paid.sum())
+    sp = get("supplier_payments", order="id")
+    if sp is not None and not sp.empty:
+        paid_suppliers += float(sp["amount"].sum())
+
+    pnl = get("v_pnl")
+    op_exp = float(pnl.iloc[0]["operating_expenses"]) if not pnl.empty else 0.0
+    draws = float(pnl.iloc[0]["owner_draws"]) if not pnl.empty else 0.0
+
+    cash = received - paid_suppliers - op_exp - draws
+    return {"received": received, "paid_suppliers": paid_suppliers,
+            "operating_expenses": op_exp, "owner_draws": draws, "cash_in_hand": cash}
 
 
 def name_map(df, key="name"):

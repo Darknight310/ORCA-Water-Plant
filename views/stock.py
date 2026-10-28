@@ -6,19 +6,21 @@ import streamlit as st
 import db
 import ui
 
-ui.header("Stock & Production", "Finished goods, raw materials, recipes, production and damages")
+ui.header("Stock & Production", "Finished goods, raw materials, batches, recipes, production and damages")
 
 products = db.get("products", order="id")
 raw = db.get("v_raw_stock", order="id")
 fg = db.get("v_product_stock", order="id")
 recipe = db.get("recipe", order="id")
+batches = db.get("raw_material_batches", order="batch_date")
+prod_usage = db.get("production_batch_usage", order="id")
 
 pname = db.name_map(products)
 rname = db.name_map(raw)
 REASONS = ["Breakage", "Leakage", "Defective / Expired", "Misprint / Label Fault",
            "Contamination", "Transit Damage", "Missing / Theft", "Other"]
 
-section = ui.sections(["Finished Goods", "Raw Materials", "Recipe", "Production", "Damages"], "stock_tab")
+section = ui.sections(["Finished Goods", "Raw Materials", "Batches", "Recipe", "Production", "Damages"], "stock_tab")
 
 
 def settings_form(df, table_name, key, level_col, unit_label):
@@ -87,6 +89,7 @@ elif section == "Raw Materials":
         k2.metric("Items", str(len(raw)))
         k3.metric("Items Running Low", str(int((raw["status"] == "LOW").sum())))
         settings_form(raw, "raw_materials", "raw", "reorder_level", "units")
+        st.caption("Looking for individual purchase batches and FIFO costing? Check the **Batches** tab above.")
     with st.expander("Add A New Raw Material"):
         n = st.session_state.setdefault("rm_n", 0)
         a, b, c = st.columns(3)
@@ -122,6 +125,49 @@ elif section == "Raw Materials":
         v.columns = ["Raw Material", "Unit", "Opening", "Purchased", "Used", "Damaged", "In Stock",
                      "Avg Cost", "Stock Value", "Alert Level", "Status"]
         ui.table(v)
+
+# ===================================================================== BATCHES
+elif section == "Batches":
+    st.caption("Every purchase becomes its own batch. Production and raw-material damages always use the "
+               "oldest batch first (FIFO), and lock in that real cost permanently.")
+    if batches.empty:
+        st.info("No raw material batches yet. They're created automatically when you record a Purchase.")
+    else:
+        h = batches.copy()
+        h["material"] = h["raw_material_id"].map(rname)
+        h["value"] = h["qty_remaining"] * h["unit_cost"]
+        h = h.sort_values(["material", "batch_date", "id"])
+
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Total Batches", str(len(h)))
+        k2.metric("Batches With Stock Left", str(int((h["qty_remaining"] > 0).sum())))
+        k3.metric("Value Remaining In Batches", "PKR " + ui.money(h["value"].sum()))
+
+        def replace_form(rec):
+            st.markdown("**Replace This Batch (Same Price)**")
+            st.caption("Use this when a supplier replaces damaged stock with new stock at the SAME original price. "
+                       "This adds quantity to this exact batch — it does not create a new batch.")
+            addq = st.number_input("Quantity Supplier Sent Back", min_value=0.0, step=1.0, key="rep_q_" + str(rec["id"]))
+            if st.button("Add This Quantity", type="primary", key="rep_save_" + str(rec["id"])):
+                if addq <= 0:
+                    st.error("Enter a quantity.")
+                else:
+                    try:
+                        db.replace_batch(rec["id"], addq)
+                        st.session_state["flash"] = ("Added " + ui.money(addq) + " units back to this batch at PKR " +
+                                                     ui.money(rec["unit_cost"], 2) + " each.")
+                        st.rerun()
+                    except Exception as ex:
+                        st.error("Could not save: " + str(ex))
+
+        ui.entity_table(
+            "batch", h,
+            [("Material", "material", None), ("Date", "batch_date", None), ("Source", "source", None),
+             ("Reference", "ref", None), ("Qty In", "qty_in", 0), ("Unit Cost", "unit_cost", 2),
+             ("Remaining", "qty_remaining", 0), ("Remaining Value", "value", 0)],
+            detail=("Replace (Same Price)", replace_form),
+            label=lambda r: str(r["material"]) + "  ·  " + str(r["batch_date"]),
+            can_delete=lambda r: False)
 
 # ==================================================================== RECIPE
 elif section == "Recipe":
@@ -172,18 +218,31 @@ elif section == "Production":
             pid = None
             if prod and bundles > 0:
                 pid = int(products.loc[products["name"] == prod, "id"].iloc[0])
-                rs = raw[["id", "name", "unit", "balance"]].rename(columns={"id": "rm_id", "name": "Material", "balance": "In Stock"})
-                need = recipe[recipe["product_id"] == pid].merge(rs, left_on="raw_material_id", right_on="rm_id")
-                if need.empty:
+                need_rows = recipe[recipe["product_id"] == pid]
+                if need_rows.empty:
                     st.error("This product has no recipe yet. Add it in the Recipe section first.")
                 else:
                     need_ok = True
-                    need["Needed"] = need["qty_per_bundle"] * float(bundles)
-                    need["After"] = need["In Stock"] - need["Needed"]
-                    st.markdown("**Raw Materials This Batch Will Use**")
-                    ui.table(ui.fmt(need[["Material", "Needed", "In Stock", "After"]], ["Needed", "In Stock", "After"]))
-                    if (need["After"] < 0).any():
-                        st.warning("Some raw materials would go negative. You can still save if your recorded stock is out of date.")
+                    preview, shortfall_any, total_cost_preview = [], False, 0.0
+                    for _, rc in need_rows.iterrows():
+                        rm_id = int(rc["raw_material_id"])
+                        qty_needed = float(rc["qty_per_bundle"]) * float(bundles)
+                        plan, shortfall = db.fifo_plan(rm_id, qty_needed)
+                        mat = rname.get(rm_id, "?")
+                        for p in plan:
+                            preview.append({"Material": mat, "From Batch Dated": str(p["batch_date"]),
+                                           "Quantity": p["qty"], "Unit Cost": p["unit_cost"], "Cost": p["qty"] * p["unit_cost"]})
+                            total_cost_preview += p["qty"] * p["unit_cost"]
+                        if shortfall > 1e-9:
+                            shortfall_any = True
+                            preview.append({"Material": mat, "From Batch Dated": "Not Enough Stock Recorded",
+                                           "Quantity": shortfall, "Unit Cost": None, "Cost": None})
+                    st.markdown("**Raw Materials This Batch Will Use (Oldest Stock First)**")
+                    ui.table(ui.fmt(pd.DataFrame(preview), ["Quantity", "Unit Cost", "Cost"], 2))
+                    st.caption("Estimated Production Cost: PKR " + ui.money(total_cost_preview, 2))
+                    if shortfall_any:
+                        st.warning("Some raw materials don't have enough batch stock on record. You can still save — "
+                                  "a catch-up batch will be created automatically at the last known price.")
             if st.button("Save Production", type="primary", key="prd_save_" + str(n)):
                 if not prod:
                     st.error("Choose the product.")
@@ -193,10 +252,11 @@ elif section == "Production":
                     st.error("This product has no recipe yet. Add it in the Recipe section first.")
                 else:
                     try:
-                        db.insert("production", {"production_date": pdt.isoformat(), "batch_ref": batch.strip() or None,
-                                                 "product_id": pid, "bundles": float(bundles), "notes": notes.strip() or None})
+                        _, total_cost = db.record_production(pdt.isoformat(), batch.strip() or None, pid, bundles,
+                                                             notes.strip() or None, recipe)
                         st.session_state["prd_n"] = n + 1
-                        st.session_state["flash"] = "Production saved: " + ui.money(bundles) + " bundles of " + prod + "."
+                        st.session_state["flash"] = ("Production saved: " + ui.money(bundles) + " bundles of " + prod +
+                                                     "  ·  Cost: PKR " + ui.money(total_cost, 2))
                         st.rerun()
                     except Exception as ex:
                         st.error("Could not save: " + str(ex))
@@ -207,17 +267,31 @@ elif section == "Production":
     else:
         h = prd.copy()
         h["product"] = h["product_id"].map(pname)
+
+        def show_prod_usage(r):
+            u = prod_usage[prod_usage["production_id"] == r["id"]] if not prod_usage.empty else prod_usage
+            if u is None or u.empty:
+                st.caption("No raw material batch usage recorded for this entry.")
+            else:
+                uu = u.copy()
+                uu["Material"] = uu["raw_material_id"].map(rname)
+                uu["Cost"] = uu["qty_used"] * uu["unit_cost"]
+                vv = uu[["Material", "batch_id", "qty_used", "unit_cost", "Cost"]].rename(
+                    columns={"batch_id": "Batch ID", "qty_used": "Quantity Used", "unit_cost": "Unit Cost"})
+                ui.table(ui.fmt(vv, ["Quantity Used", "Unit Cost", "Cost"], 2))
+
         ui.entity_table(
             "prd", h,
             [("Date", "production_date", None), ("Batch", "batch_ref", None), ("Product", "product", None),
-             ("Bundles", "bundles", 0), ("Notes", "notes", None)],
+             ("Bundles", "bundles", 0), ("Cost", "total_cost", 2), ("Notes", "notes", None)],
             table="production",
-            fields=[{"col": "production_date", "label": "Date", "kind": "date"},
-                    {"col": "batch_ref", "label": "Batch / Reference"},
-                    {"col": "product_id", "label": "Product", "kind": "select", "options": pname},
-                    {"col": "bundles", "label": "Bundles Produced", "kind": "num"},
+            fields=[{"col": "batch_ref", "label": "Batch / Reference"},
                     {"col": "notes", "label": "Notes"}],
-            label=lambda r: str(r["production_date"]) + "  ·  " + str(r["product"]) + "  ·  " + ui.money(r["bundles"]))
+            detail=("Raw Materials Used", show_prod_usage),
+            label=lambda r: str(r["production_date"]) + "  ·  " + str(r["product"]) + "  ·  " + ui.money(r["bundles"]),
+            can_delete=lambda r: False)
+        st.caption("Date, product and bundles can't be changed here, since the raw materials have already been "
+                  "taken from specific batches. If something was entered by mistake, let me know and we'll fix it directly.")
 
 # =================================================================== DAMAGES
 else:
@@ -225,9 +299,9 @@ else:
         n = st.session_state.setdefault("dam_n", 0)
         kind = st.radio("What Was Damaged?", ["Raw Material", "Finished Goods"], horizontal=True, key="dam_k_" + str(n))
         if kind == "Raw Material":
-            src, label, cost_col = raw, "Raw Material", "avg_cost"
+            src, label = raw, "Raw Material"
         else:
-            src, label, cost_col = fg, "Product", "std_cost"
+            src, label = fg, "Product"
         a, b, c = st.columns(3)
         ddate = a.date_input("Date", value=dt.date.today(), key="dam_d_" + str(n))
         names = src["name"].tolist() if not src.empty else []
@@ -236,10 +310,27 @@ else:
         e, f = st.columns(2)
         reason = e.selectbox("Reason", REASONS, key="dam_r_" + str(n))
         notes = f.text_input("Notes (Optional)", key="dam_n_" + str(n))
+
         unit_cost = 0.0
+        item_id = None
         if item:
-            unit_cost = float(src.loc[src["name"] == item, cost_col].iloc[0])
-            st.caption("Cost per unit: PKR " + ui.money(unit_cost, 2) + "   →   loss on this entry: PKR " + ui.money(unit_cost * dqty, 2))
+            item_id = int(src.loc[src["name"] == item, "id"].iloc[0])
+            if kind == "Raw Material":
+                if dqty > 0:
+                    plan, shortfall = db.fifo_plan(item_id, dqty)
+                    est = sum(p["qty"] * p["unit_cost"] for p in plan)
+                    if shortfall > 1e-9:
+                        fallback = plan[-1]["unit_cost"] if plan else float(src.loc[src["id"] == item_id, "avg_cost"].iloc[0])
+                        est += shortfall * fallback
+                        st.warning("Not enough batch stock recorded for this quantity — the extra amount will be "
+                                  "added automatically as a catch-up batch at the last known price.")
+                    st.caption("This will be taken from " + str(max(len(plan), 1)) + " batch(es), oldest first. "
+                              "Estimated loss: PKR " + ui.money(est, 2))
+            else:
+                unit_cost = float(src.loc[src["name"] == item, "std_cost"].iloc[0])
+                st.caption("Cost per unit: PKR " + ui.money(unit_cost, 2) + "   →   loss on this entry: PKR " +
+                          ui.money(unit_cost * dqty, 2))
+
         if st.button("Save Damage", type="primary", key="dam_save_" + str(n)):
             if not item:
                 st.error("Choose the item.")
@@ -247,17 +338,18 @@ else:
                 st.error("Enter a quantity.")
             else:
                 try:
-                    row = {"damage_date": ddate.isoformat(), "damage_type": kind, "qty": float(dqty),
-                           "reason": reason, "notes": notes.strip() or None, "unit_cost_at_time": unit_cost}
-                    iid = int(src.loc[src["name"] == item, "id"].iloc[0])
-                    row["raw_material_id"] = iid if kind == "Raw Material" else None
-                    row["product_id"] = iid if kind == "Finished Goods" else None
-                    db.insert("damages", row)
+                    if kind == "Raw Material":
+                        db.record_raw_damage(ddate.isoformat(), item_id, float(dqty), reason, notes.strip() or None)
+                    else:
+                        db.insert("damages", {"damage_date": ddate.isoformat(), "damage_type": kind, "qty": float(dqty),
+                                              "reason": reason, "notes": notes.strip() or None,
+                                              "unit_cost_at_time": unit_cost, "raw_material_id": None, "product_id": item_id})
                     st.session_state["dam_n"] = n + 1
                     st.session_state["flash"] = "Damage recorded: " + ui.money(dqty) + " × " + item + "."
                     st.rerun()
                 except Exception as ex:
                     st.error("Could not save: " + str(ex))
+
     st.markdown("#### Damage History")
     dam = db.get("damages", order="id", desc=True)
     if dam.empty:
@@ -268,13 +360,50 @@ else:
                             else pname.get(r["product_id"]), axis=1)
         h["loss"] = h["qty"] * h["unit_cost_at_time"]
         st.metric("Total Loss From Damages", "PKR " + ui.money(h["loss"].sum()))
-        ui.entity_table(
-            "dam", h,
-            [("Date", "damage_date", None), ("Type", "damage_type", None), ("Item", "item", None),
-             ("Quantity", "qty", 0), ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
-            table="damages",
-            fields=[{"col": "damage_date", "label": "Date", "kind": "date"},
-                    {"col": "qty", "label": "Quantity", "kind": "num"},
-                    {"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
-                    {"col": "notes", "label": "Notes"}],
-            label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]))
+
+        rm_dam = h[h["damage_type"] == "Raw Material"].copy()
+        fg_dam = h[h["damage_type"] == "Finished Goods"].copy()
+
+        st.markdown("**Raw Material Damages**")
+        if rm_dam.empty:
+            st.info("No raw material damages recorded yet.")
+        else:
+            def show_rm_batch(r):
+                if pd.isna(r.get("batch_id")):
+                    st.caption("No batch recorded for this entry.")
+                    return
+                b = batches[batches["id"] == r["batch_id"]]
+                if b.empty:
+                    st.caption("Batch not found (it may have been removed).")
+                else:
+                    bb = b.iloc[0]
+                    st.caption("Taken From Batch Dated " + str(bb["batch_date"]) + "  ·  Cost At The Time: PKR " +
+                              ui.money(bb["unit_cost"], 2) + " Per Unit")
+
+            ui.entity_table(
+                "dam_rm", rm_dam,
+                [("Date", "damage_date", None), ("Item", "item", None), ("Quantity", "qty", 0),
+                 ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
+                table="damages",
+                fields=[{"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
+                        {"col": "notes", "label": "Notes"}],
+                detail=("Which Batch Was Used", show_rm_batch),
+                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]),
+                can_delete=lambda r: False)
+            st.caption("Quantity and date can't be changed here, since the loss has already been taken from a "
+                      "specific raw material batch. If this was entered by mistake, let me know and we'll fix it directly.")
+
+        st.markdown("**Finished Goods Damages**")
+        if fg_dam.empty:
+            st.info("No finished goods damages recorded yet.")
+        else:
+            ui.entity_table(
+                "dam_fg", fg_dam,
+                [("Date", "damage_date", None), ("Item", "item", None), ("Quantity", "qty", 0),
+                 ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
+                table="damages",
+                fields=[{"col": "damage_date", "label": "Date", "kind": "date"},
+                        {"col": "qty", "label": "Quantity", "kind": "num"},
+                        {"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
+                        {"col": "notes", "label": "Notes"}],
+                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]))

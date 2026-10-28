@@ -147,18 +147,23 @@ if section == "New Invoice":
                         "customer_id": cust_id, "invoice_discount": float(inv_disc)}
                 if mode == "edit":
                     inv_id = int(pre["invoice_id"])
+                    db.reverse_invoice_lines(inv_id)
                     old = db.get("invoice_lines", order="id")
                     old_ids = old.loc[old["invoice_id"] == inv_id, "id"].tolist()
-                    db.insert("invoice_lines", line_rows(valid, "invoice_id", inv_id))
+                    new_lines = db.insert("invoice_lines", line_rows(valid, "invoice_id", inv_id))
                     db.delete_ids("invoice_lines", old_ids)
+                    for nl in new_lines:
+                        db.consume_invoice_line_fg(nl["id"], nl["product_id"], nl["qty"])
                     db.update("invoices", inv_id, head)
                 else:
                     inv_id = int(db.insert("invoices", head)[0]["id"])
                     try:
-                        db.insert("invoice_lines", line_rows(valid, "invoice_id", inv_id))
+                        new_lines = db.insert("invoice_lines", line_rows(valid, "invoice_id", inv_id))
                     except Exception:
                         db.delete("invoices", inv_id)
                         raise
+                    for nl in new_lines:
+                        db.consume_invoice_line_fg(nl["id"], nl["product_id"], nl["qty"])
                     if float(received) > 0:
                         db.insert("payments", {"payment_date": inv_date.isoformat(), "invoice_id": inv_id,
                                                "customer_id": cust_id, "amount": float(received), "method": method})
@@ -189,6 +194,7 @@ elif section == "Invoices":
     def delete_invoice(r):
         if orders is not None:
             db.update_where("sale_orders", "invoice_id", int(r["id"]), {"status": "Pending"})
+        db.reverse_invoice_lines(int(r["id"]))
         db.delete_where("payments", "invoice_id", int(r["id"]))
         db.delete("invoices", int(r["id"]))
 
@@ -202,7 +208,13 @@ elif section == "Invoices":
         il = il[il["invoice_id"] == r["id"]]
         f = lines_frame(il)
         f["Amount"] = f["Bundles"] * f["Rate (PKR)"] - f["Discount (PKR)"]
-        ui.table(ui.fmt(f, ["Bundles", "Rate (PKR)", "Discount (PKR)", "Amount"], 2))
+        if "cogs_amount" in il.columns:
+            f["Cost (PKR)"] = il["cogs_amount"].fillna(0).values
+            f["Profit (PKR)"] = f["Amount"] - f["Cost (PKR)"]
+            cols = ["Bundles", "Rate (PKR)", "Discount (PKR)", "Amount", "Cost (PKR)", "Profit (PKR)"]
+        else:
+            cols = ["Bundles", "Rate (PKR)", "Discount (PKR)", "Amount"]
+        ui.table(ui.fmt(f, cols, 2))
         if r["invoice_discount"] > 0:
             st.caption("Discount on the whole invoice: PKR " + ui.money(r["invoice_discount"]))
 
@@ -431,6 +443,6 @@ elif section == "Payments":
             fields=[{"col": "payment_date", "label": "Date", "kind": "date"},
                     {"col": "amount", "label": "Amount (PKR)", "kind": "num", "step": 100.0},
                     {"col": "method", "label": "Method", "kind": "choice", "options": db.METHODS},
-                    {"col": "notes", "label": "Notes", "kind": "text"}],
+                    {"col": "notes", "label": "Notes"}],
             validate=check_payment,
             label=lambda r: str(r["invoice_no"]) + "  ·  " + str(r["customer_name"]) + "  ·  PKR " + ui.money(r["amount"]))

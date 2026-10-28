@@ -6,7 +6,7 @@ import streamlit as st
 import db
 import ui
 
-ui.header("Suppliers & Purchases", "Your suppliers, raw material purchases and what you've bought from each")
+ui.header("Suppliers & Purchases", "Your suppliers, raw material purchases and what you owe each")
 
 raw = db.get("v_raw_stock", order="id")
 rname = db.name_map(raw)
@@ -15,7 +15,7 @@ try:
 except Exception:
     suppliers = None
 
-section = ui.sections(["Suppliers", "Purchases"], "sup_pur_tab")
+section = ui.sections(["Suppliers", "Purchases", "Supplier Payments"], "sup_pur_tab")
 
 # ================================================================== SUPPLIERS
 if section == "Suppliers":
@@ -30,15 +30,24 @@ if section == "Suppliers":
             pp = pur_all.assign(key=pur_all["supplier"].fillna("").str.strip().str.lower(),
                                 amount=pur_all["qty"] * pur_all["unit_cost"])
             tot = pp.groupby("key").agg(purchased=("amount", "sum"), last_purchase=("purchase_date", "max")).reset_index()
+        payables = db.get_payables()
         sdf = suppliers.copy()
         if not sdf.empty:
             sdf["key"] = sdf["name"].str.strip().str.lower()
             sdf = sdf.merge(tot, on="key", how="left")
             sdf["purchased"] = sdf["purchased"].fillna(0)
+            if not payables.empty:
+                pay2 = payables.copy()
+                pay2["key"] = pay2["supplier"].str.strip().str.lower()
+                sdf = sdf.merge(pay2[["key", "payable"]], on="key", how="left")
+            else:
+                sdf["payable"] = 0.0
+            sdf["payable"] = sdf["payable"].fillna(0.0)
 
-        k1, k2 = st.columns(2)
+        k1, k2, k3 = st.columns(3)
         k1.metric("Suppliers", str(len(suppliers)))
         k2.metric("Total Purchased", "PKR " + ui.money(sdf["purchased"].sum() if not sdf.empty else 0))
+        k3.metric("Total Owed To Suppliers", "PKR " + ui.money(sdf["payable"].sum() if not sdf.empty else 0))
 
         with st.expander("Add A New Supplier"):
             n = st.session_state.setdefault("sup_n", 0)
@@ -73,7 +82,7 @@ if section == "Suppliers":
                 "sup", sdf.sort_values("name"),
                 [("Supplier", "name", None), ("Supplies", "category", None), ("Contact", "contact_person", None),
                  ("Phone", "phone", None), ("Address", "address", None), ("Total Purchased", "purchased", 0),
-                 ("Last Purchase", "last_purchase", None)],
+                 ("Owed", "payable", 0), ("Last Purchase", "last_purchase", None)],
                 table="suppliers",
                 fields=[{"col": "name", "label": "Supplier Name", "required": True},
                         {"col": "category", "label": "What They Supply"},
@@ -83,7 +92,7 @@ if section == "Suppliers":
                 label=lambda r: str(r["name"]))
 
 # ================================================================== PURCHASES
-else:
+elif section == "Purchases":
     if raw.empty:
         st.info("Add raw materials first.")
     else:
@@ -96,59 +105,4 @@ else:
             sup_pick = c.selectbox("Supplier", sup_names, index=None, placeholder="Choose Or Type Below", key="pur_sp_" + str(n))
             sup_new = st.text_input("Or Type A New Supplier (Optional)", key="pur_s_" + str(n))
             d, e, f = st.columns(3)
-            qty = d.number_input("Quantity", min_value=0.0, step=1.0, key="pur_q_" + str(n))
-            cost = e.number_input("Unit Cost (PKR)", min_value=0.0, step=0.1, format="%.2f", key="pur_c_" + str(n))
-            ref = f.text_input("Invoice / Reference", key="pur_r_" + str(n))
-            notes = st.text_input("Notes (Optional)", key="pur_n_" + str(n))
-            if item:
-                r = raw[raw["name"] == item].iloc[0]
-                old_q = float(r["opening_stock"]) + float(r["purchased_qty"])
-                old_v = float(r["opening_stock"]) * float(r["opening_unit_cost"]) + float(r["purchase_value"])
-                new_q = old_q + float(qty)
-                new_avg = (old_v + float(qty) * float(cost)) / new_q if new_q else 0
-                st.caption("Total this purchase: PKR " + ui.money(qty * cost, 2) + "   ·   Average cost now: " +
-                           ui.money(r["avg_cost"], 2) + "  →  after this purchase: " + ui.money(new_avg, 2))
-                st.caption("This also creates a new batch dated " + pdate.isoformat() +
-                          ", which Production and Raw Material Damages will use oldest-first.")
-            if st.button("Save Purchase", type="primary", key="pur_save_" + str(n)):
-                supplier = sup_new.strip() or sup_pick or None
-                if not item:
-                    st.error("Choose a raw material.")
-                elif qty <= 0:
-                    st.error("Enter a quantity.")
-                else:
-                    try:
-                        rid = int(raw.loc[raw["name"] == item, "id"].iloc[0])
-                        db.record_purchase(pdate.isoformat(), supplier, rid, float(qty), float(cost),
-                                           ref.strip() or None, notes.strip() or None)
-                        if supplier and suppliers is not None and supplier.lower() not in [x.lower() for x in sup_names]:
-                            try:
-                                db.insert("suppliers", {"name": supplier})
-                            except Exception:
-                                pass
-                        st.session_state["pur_n"] = n + 1
-                        st.session_state["flash"] = "Purchase saved: " + ui.money(qty) + " × " + item + " (new batch created)."
-                        st.rerun()
-                    except Exception as ex:
-                        st.error("Could not save: " + str(ex))
-    st.markdown("#### Purchase History")
-    pur = db.get("purchases", order="id", desc=True)
-    if pur.empty:
-        st.info("No purchases recorded yet.")
-    else:
-        h = pur.copy()
-        h["material"] = h["raw_material_id"].map(rname)
-        h["total"] = h["qty"] * h["unit_cost"]
-        ui.entity_table(
-            "pur", h,
-            [("Date", "purchase_date", None), ("Supplier", "supplier", None), ("Raw Material", "material", None),
-             ("Quantity", "qty", 0), ("Unit Cost", "unit_cost", 2), ("Total", "total", 0), ("Reference", "ref", None)],
-            table="purchases",
-            fields=[{"col": "supplier", "label": "Supplier"},
-                    {"col": "ref", "label": "Invoice / Reference"},
-                    {"col": "notes", "label": "Notes"}],
-            label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]),
-            can_delete=lambda r: False)
-        st.caption("Quantity and cost can't be changed here, since they've already become a batch that may be in "
-                  "use. If a supplier sends more at the same price, use 'Replace (Same Price)' in Stock & Production "
-                  "→ Batches. If something was entered completely wrong, let me know and we'll fix it directly.")
+            qty = d.number_input("Quantity", min_value=0.0, 

@@ -27,7 +27,7 @@ else:
     k2.metric("With Balance Receivable", str(int((df["owed"] > 0).sum())))
     k3.metric("Total Receivables", "PKR " + ui.money(df["owed"].sum()))
 
-with st.expander("Add A New Customer"):
+with st.expander("Add A New Customer", expanded=True):
     n = st.session_state.setdefault("cust_n", 0)
     a, b = st.columns(2)
     name = a.text_input("Customer / Shop Name", key="c_name_" + str(n))

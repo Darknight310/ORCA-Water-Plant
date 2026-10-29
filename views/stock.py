@@ -27,7 +27,7 @@ def settings_form(df, table_name, key, level_col, unit_label):
     """Physical count and alert level for one item (shown above the table)."""
     if df.empty:
         return
-    with st.expander("Physical Count & Alert Level"):
+    with st.expander("Physical Count & Alert Level", expanded=True):
         st.caption("Enter what you actually counted. The app adjusts the starting stock so the balance matches your count.")
         name = st.selectbox("Item", df["name"].tolist(), index=None, placeholder="Choose An Item", key="set_item_" + key)
         if name:
@@ -90,7 +90,7 @@ elif section == "Raw Materials":
         k3.metric("Items Running Low", str(int((raw["status"] == "LOW").sum())))
         settings_form(raw, "raw_materials", "raw", "reorder_level", "units")
         st.caption("Looking for individual purchase batches and FIFO costing? Check the **Batches** tab above.")
-    with st.expander("Add A New Raw Material"):
+    with st.expander("Add A New Raw Material", expanded=True):
         n = st.session_state.setdefault("rm_n", 0)
         a, b, c = st.columns(3)
         nm = a.text_input("Name", key="rm_name_" + str(n))
@@ -173,7 +173,7 @@ elif section == "Batches":
 elif section == "Recipe":
     st.caption("How much of each raw material goes into ONE bundle of each product. This drives production and product cost.")
     if not products.empty and not raw.empty:
-        with st.expander("Add Or Change A Recipe Line"):
+        with st.expander("Add Or Change A Recipe Line", expanded=True):
             a, b, c = st.columns(3)
             rp = a.selectbox("Product", products["name"].tolist(), index=None, placeholder="Choose", key="rec_p")
             rm = b.selectbox("Raw Material", raw["name"].tolist(), index=None, placeholder="Choose", key="rec_m")
@@ -267,6 +267,8 @@ elif section == "Production":
     else:
         h = prd.copy()
         h["product"] = h["product_id"].map(pname)
+        h["_sort_date"] = pd.to_datetime(h["production_date"], errors="coerce")
+        h = h.sort_values(["_sort_date", "id"], ascending=[False, False]).drop(columns="_sort_date").reset_index(drop=True)
 
         def show_prod_usage(r):
             u = prod_usage[prod_usage["production_id"] == r["id"]] if not prod_usage.empty else prod_usage

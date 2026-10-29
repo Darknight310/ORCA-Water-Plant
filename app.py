@@ -3,6 +3,7 @@ import hmac
 import time
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 import db
 import ui
@@ -29,6 +30,33 @@ def _guard():
     return {"fails": [], "locked_until": 0.0}
 
 
+def _stop_password_suggestion():
+    """Tells the browser this password box is for SIGNING IN to an existing
+    account, not creating a new one, so Chrome/Edge stop offering to
+    generate and save a brand new password here."""
+    components.html("""
+    <script>
+    (function() {
+      function patch() {
+        try {
+          var doc = window.parent.document;
+          var fields = doc.querySelectorAll('input[type="password"]');
+          fields.forEach(function(el) {
+            el.setAttribute('autocomplete', 'current-password');
+          });
+        } catch (e) {}
+      }
+      patch();
+      var obs = new MutationObserver(patch);
+      try {
+        obs.observe(window.parent.document.body, {childList: true, subtree: true});
+      } catch (e) {}
+      setTimeout(function() { obs.disconnect(); }, 8000);
+    })();
+    </script>
+    """, height=0, width=0)
+
+
 if not st.session_state.get("auth"):
     _, mid, _ = st.columns([1, 1.1, 1])
     with mid:
@@ -44,6 +72,7 @@ if not st.session_state.get("auth"):
             with st.form("login"):
                 pw = st.text_input("Password", type="password")
                 go = st.form_submit_button("Sign In", type="primary")
+            _stop_password_suggestion()
             if go:
                 if hmac.compare_digest(pw.encode(), str(st.secrets["APP_PASSWORD"]).encode()):
                     guard["fails"] = []

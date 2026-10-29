@@ -49,7 +49,7 @@ if section == "Suppliers":
         k2.metric("Total Purchased", "PKR " + ui.money(sdf["purchased"].sum() if not sdf.empty else 0))
         k3.metric("Total Owed To Suppliers", "PKR " + ui.money(sdf["payable"].sum() if not sdf.empty else 0))
 
-        with st.expander("Add A New Supplier"):
+        with st.expander("Add A New Supplier", expanded=True):
             n = st.session_state.setdefault("sup_n", 0)
             a, b = st.columns(2)
             sname = a.text_input("Supplier Name", key="s_name_" + str(n))

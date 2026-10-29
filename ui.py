@@ -2,6 +2,7 @@ import math
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 import db
 
@@ -175,6 +176,46 @@ def fmt(df, cols, d=0):
     return out
 
 
+# --------------------------------------------------- TEMPORARY DIAGNOSTIC TOOL
+def _debug_dump_html():
+    """TEMPORARY — shows the real HTML Streamlit built for the tab switcher,
+    so we can write CSS that actually matches it. Remove after we're done."""
+    import json
+    selectors = [
+        '[data-testid="stSegmentedControl"]',
+        'div[data-baseweb="button-group"]',
+        'div[role="radiogroup"]',
+    ]
+    sels_json = json.dumps(selectors)
+    html = """
+    <div id="out" style="background:#000;color:#39FF14;font-family:monospace;
+         font-size:11px;white-space:pre-wrap;padding:10px;max-height:380px;
+         overflow:auto;border:1px solid #333;border-radius:6px;">Loading…</div>
+    <script>
+    (function() {
+      var sels = """ + sels_json + """;
+      function run() {
+        var doc = window.parent.document;
+        var out = document.getElementById('out');
+        var text = '';
+        sels.forEach(function(s) {
+          var els = doc.querySelectorAll(s);
+          text += 'SELECTOR: ' + s + '  -> matches: ' + els.length + '\\n';
+          els.forEach(function(el, i) {
+            text += '--- match ' + i + ' ---\\n' + el.outerHTML.slice(0, 1200) + '\\n\\n';
+          });
+        });
+        out.textContent = text || 'no matches found';
+      }
+      try { run(); } catch (e) {
+        document.getElementById('out').textContent = 'error: ' + e;
+      }
+    })();
+    </script>
+    """
+    components.html(html, height=400, scrolling=True)
+
+
 # ------------------------------------------------------------------ navigation
 def sections(options, key, default=None):
     """Tab-like switcher that remembers its choice, and can be switched from code."""
@@ -189,6 +230,7 @@ def sections(options, key, default=None):
         sel = st.segmented_control("Section", options, key=key, label_visibility="collapsed")
     except AttributeError:
         sel = st.radio("Section", options, key=key, horizontal=True, label_visibility="collapsed")
+    _debug_dump_html()  # TEMPORARY — remove once CSS is fixed
     return sel if sel in options else (default or options[0])
 
 

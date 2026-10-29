@@ -261,7 +261,7 @@ elif section == "Sale Orders":
         st.caption("A sale order is a pending, not-yet-delivered order. It does not count as a receivable until you convert it to an invoice.")
 
         title = "New Sale Order" if not so_pre else "Edit Sale Order " + so_pre["order_no"]
-        with st.expander(title, expanded=bool(so_pre)):
+        with st.expander(title, expanded=True):
             existing_o = orders["order_no"].tolist() if not orders.empty else []
             a, b, c = st.columns([1, 1, 2])
             o_no = a.text_input("Order No.", value=so_pre["order_no"] if so_pre else db.next_no(existing_o, "SO#"),

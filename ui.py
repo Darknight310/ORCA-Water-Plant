@@ -80,26 +80,36 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .dchip-val { color: #F8FAFC; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dchip-pct { color: #64748B; font-size: .76rem; margin-left: .45rem; }
 
-/* sub-tab switcher used across pages (ui.sections()) — each option as its own
-   separate rounded box with a gap between them, instead of one joined strip */
+/* sub-tab switcher used across pages (ui.sections()) — one sleek dark capsule,
+   the active choice shown as a soft glowing cyan pill floating inside it */
 [data-testid="stSegmentedControl"] div[data-baseweb="button-group"],
-[data-testid="stSegmentedControl"] [role="radiogroup"] {
-  gap: 10px !important; background: transparent !important; flex-wrap: wrap;
+[data-testid="stSegmentedControl"] [role="radiogroup"],
+div[role="radiogroup"][aria-label="Section"] {
+  display: inline-flex !important; flex-wrap: wrap; gap: 4px !important; padding: 5px;
+  background: #0B1220 !important; border: 1px solid #1F2937; border-radius: 999px;
 }
 [data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button,
 [data-testid="stSegmentedControl"] [role="radiogroup"] button {
-  border-radius: 12px !important; margin: 0 !important;
-  background: #111827 !important; border: 1px solid #1F2937 !important;
-  color: #CBD5E1 !important; font-weight: 600 !important;
+  border-radius: 999px !important; margin: 0 !important; border: none !important;
+  background: transparent !important; color: #94A3B8 !important; font-weight: 600 !important;
+  padding: .5rem 1.15rem !important; transition: background .2s ease, color .2s ease, box-shadow .2s ease;
 }
+[data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button:hover,
+[data-testid="stSegmentedControl"] [role="radiogroup"] button:hover { color: #E2E8F0 !important; }
 [data-testid="stSegmentedControl"] button[aria-checked="true"],
 [data-testid="stSegmentedControl"] button[data-testid="stBaseButton-primary"] {
-  background: rgba(56,189,248,.14) !important; border-color: #38BDF8 !important; color: #7DD3FC !important;
+  background: linear-gradient(180deg, rgba(56,189,248,.24), rgba(56,189,248,.12)) !important;
+  color: #7DD3FC !important;
+  box-shadow: 0 2px 10px rgba(56,189,248,.2), inset 0 0 0 1px rgba(56,189,248,.4) !important;
 }
-div[role="radiogroup"][aria-label="Section"] { gap: 10px !important; flex-wrap: wrap; }
 div[role="radiogroup"][aria-label="Section"] label {
-  background: #111827 !important; border: 1px solid #1F2937 !important; border-radius: 12px !important;
-  padding: .5rem 1rem !important; margin: 0 !important;
+  background: transparent !important; border: none !important; border-radius: 999px !important;
+  padding: .5rem 1.15rem !important; margin: 0 !important; color: #94A3B8; transition: color .2s ease;
+}
+div[role="radiogroup"][aria-label="Section"] label:has(input:checked) {
+  background: linear-gradient(180deg, rgba(56,189,248,.24), rgba(56,189,248,.12)) !important;
+  color: #7DD3FC !important;
+  box-shadow: 0 2px 10px rgba(56,189,248,.2), inset 0 0 0 1px rgba(56,189,248,.4) !important;
 }
 
 /* phone layout: switches automatically on screens up to 768px wide */
@@ -127,7 +137,7 @@ div[role="radiogroup"][aria-label="Section"] label {
   .dchip-pct { font-size: .68rem; }
   [data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button,
   [data-testid="stSegmentedControl"] [role="radiogroup"] button,
-  div[role="radiogroup"][aria-label="Section"] label { font-size: .8rem !important; padding: .4rem .7rem !important; }
+  div[role="radiogroup"][aria-label="Section"] label { font-size: .78rem !important; padding: .42rem .8rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"],

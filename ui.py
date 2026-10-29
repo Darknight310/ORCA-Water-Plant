@@ -2,7 +2,6 @@ import math
 
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 import db
 
@@ -82,32 +81,27 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .dchip-pct { color: #64748B; font-size: .76rem; margin-left: .45rem; }
 
 /* sub-tab switcher used across pages (ui.sections()) — one sleek dark capsule,
-   the active choice shown as a soft glowing cyan pill floating inside it */
-[data-testid="stSegmentedControl"] div[data-baseweb="button-group"],
-[data-testid="stSegmentedControl"] [role="radiogroup"],
+   the active choice shown as a soft glowing cyan pill floating inside it.
+   Real markup (confirmed from live HTML dump): a div[role="radiogroup"]
+   holding button[data-variant="segmented_control"][role="radio"] elements,
+   with the active one carrying aria-checked="true". */
 div[role="radiogroup"][aria-label="Section"] {
-  display: inline-flex !important; flex-wrap: wrap; gap: 4px !important; padding: 5px;
-  background: #0B1220 !important; border: 1px solid #1F2937; border-radius: 999px;
+  display: inline-flex !important; flex-wrap: wrap; gap: 4px !important; padding: 5px !important;
+  background: #0B1220 !important; border: 1px solid #1F2937 !important; border-radius: 999px !important;
 }
-[data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button,
-[data-testid="stSegmentedControl"] [role="radiogroup"] button {
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
   border-radius: 999px !important; margin: 0 !important; border: none !important;
   background: transparent !important; color: #94A3B8 !important; font-weight: 600 !important;
-  padding: .5rem 1.15rem !important; transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+  padding: .5rem 1.15rem !important; box-shadow: none !important;
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
 }
-[data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button:hover,
-[data-testid="stSegmentedControl"] [role="radiogroup"] button:hover { color: #E2E8F0 !important; }
-[data-testid="stSegmentedControl"] button[aria-checked="true"],
-[data-testid="stSegmentedControl"] button[data-testid="stBaseButton-primary"] {
-  background: linear-gradient(180deg, rgba(56,189,248,.24), rgba(56,189,248,.12)) !important;
-  color: #7DD3FC !important;
-  box-shadow: 0 2px 10px rgba(56,189,248,.2), inset 0 0 0 1px rgba(56,189,248,.4) !important;
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
+  color: inherit !important; margin: 0 !important; font-weight: 600 !important; font-size: .92rem !important;
 }
-div[role="radiogroup"][aria-label="Section"] label {
-  background: transparent !important; border: none !important; border-radius: 999px !important;
-  padding: .5rem 1.15rem !important; margin: 0 !important; color: #94A3B8; transition: color .2s ease;
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:hover {
+  color: #E2E8F0 !important;
 }
-div[role="radiogroup"][aria-label="Section"] label:has(input:checked) {
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"] {
   background: linear-gradient(180deg, rgba(56,189,248,.24), rgba(56,189,248,.12)) !important;
   color: #7DD3FC !important;
   box-shadow: 0 2px 10px rgba(56,189,248,.2), inset 0 0 0 1px rgba(56,189,248,.4) !important;
@@ -136,9 +130,12 @@ div[role="radiogroup"][aria-label="Section"] label:has(input:checked) {
   .dchip-row { font-size: .78rem; padding: .5rem .2rem; }
   .dchip-val { font-size: .8rem; }
   .dchip-pct { font-size: .68rem; }
-  [data-testid="stSegmentedControl"] div[data-baseweb="button-group"] button,
-  [data-testid="stSegmentedControl"] [role="radiogroup"] button,
-  div[role="radiogroup"][aria-label="Section"] label { font-size: .78rem !important; padding: .42rem .8rem !important; }
+  div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
+    padding: .42rem .8rem !important;
+  }
+  div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
+    font-size: .78rem !important;
+  }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)) > [data-testid="stColumn"],
@@ -176,46 +173,6 @@ def fmt(df, cols, d=0):
     return out
 
 
-# --------------------------------------------------- TEMPORARY DIAGNOSTIC TOOL
-def _debug_dump_html():
-    """TEMPORARY — shows the real HTML Streamlit built for the tab switcher,
-    so we can write CSS that actually matches it. Remove after we're done."""
-    import json
-    selectors = [
-        '[data-testid="stSegmentedControl"]',
-        'div[data-baseweb="button-group"]',
-        'div[role="radiogroup"]',
-    ]
-    sels_json = json.dumps(selectors)
-    html = """
-    <div id="out" style="background:#000;color:#39FF14;font-family:monospace;
-         font-size:11px;white-space:pre-wrap;padding:10px;max-height:380px;
-         overflow:auto;border:1px solid #333;border-radius:6px;">Loading…</div>
-    <script>
-    (function() {
-      var sels = """ + sels_json + """;
-      function run() {
-        var doc = window.parent.document;
-        var out = document.getElementById('out');
-        var text = '';
-        sels.forEach(function(s) {
-          var els = doc.querySelectorAll(s);
-          text += 'SELECTOR: ' + s + '  -> matches: ' + els.length + '\\n';
-          els.forEach(function(el, i) {
-            text += '--- match ' + i + ' ---\\n' + el.outerHTML.slice(0, 1200) + '\\n\\n';
-          });
-        });
-        out.textContent = text || 'no matches found';
-      }
-      try { run(); } catch (e) {
-        document.getElementById('out').textContent = 'error: ' + e;
-      }
-    })();
-    </script>
-    """
-    components.html(html, height=400, scrolling=True)
-
-
 # ------------------------------------------------------------------ navigation
 def sections(options, key, default=None):
     """Tab-like switcher that remembers its choice, and can be switched from code."""
@@ -230,7 +187,6 @@ def sections(options, key, default=None):
         sel = st.segmented_control("Section", options, key=key, label_visibility="collapsed")
     except AttributeError:
         sel = st.radio("Section", options, key=key, horizontal=True, label_visibility="collapsed")
-    _debug_dump_html()  # TEMPORARY — remove once CSS is fixed
     return sel if sel in options else (default or options[0])
 
 

@@ -80,31 +80,167 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .dchip-val { color: #F8FAFC; font-weight: 700; font-variant-numeric: tabular-nums; }
 .dchip-pct { color: #64748B; font-size: .76rem; margin-left: .45rem; }
 
-/* sub-tab switcher used across pages (ui.sections()) — one sleek dark capsule,
-   the active choice shown as a soft glowing cyan pill floating inside it.
-   Real markup (confirmed from live HTML dump): a div[role="radiogroup"]
-   holding button[data-variant="segmented_control"][role="radio"] elements,
-   with the active one carrying aria-checked="true". */
+/* main page tabs (Streamlit's built-in top navigation) — separate dark
+   card-chips, each with its own coloured circular icon bubble. Streamlit
+   marks the current page's link with aria-current="page". */
+[data-testid="stTopNav"] {
+  align-items: center !important;
+  padding: .28rem .75rem !important;
+}
+[data-testid="stTopNavLink"],
+[data-testid="stTopNavDropdownLink"] {
+  --chip: #38BDF8; --chip-rgb: 56,189,248;
+  align-items: center !important;
+  gap: .45rem !important;
+  min-height: 2.38rem !important;
+  margin: .16rem .1rem !important;
+  padding: .3rem .62rem .3rem .36rem !important;
+  border: 1px solid rgba(148,163,184,.16) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(145deg, rgba(17,24,39,.96), rgba(11,15,23,.94)) !important;
+  box-shadow: 0 8px 22px rgba(2,6,23,.2), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  color: #CBD5E1 !important;
+  text-decoration: none !important;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="customers"] {
+  --chip: #C084FC; --chip-rgb: 192,132,252;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="sales_invoices"] {
+  --chip: #34D399; --chip-rgb: 52,211,153;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="stock_production"] {
+  --chip: #FBBF24; --chip-rgb: 251,191,36;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="suppliers_purchases"] {
+  --chip: #FB923C; --chip-rgb: 251,146,60;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="expenses_draws"] {
+  --chip: #F87171; --chip-rgb: 248,113,113;
+}
+:is([data-testid="stTopNavLink"], [data-testid="stTopNavDropdownLink"])[href*="reports"] {
+  --chip: #60A5FA; --chip-rgb: 96,165,250;
+}
+[data-testid="stTopNavLink"]:hover,
+[data-testid="stTopNavDropdownLink"]:hover {
+  border-color: rgba(var(--chip-rgb),.48) !important;
+  background: linear-gradient(145deg, rgba(var(--chip-rgb),.14), rgba(17,24,39,.97) 58%) !important;
+  box-shadow: 0 10px 24px rgba(2,6,23,.26), 0 0 0 1px rgba(var(--chip-rgb),.08),
+              inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+[data-testid="stTopNavLink"][aria-current="page"],
+[data-testid="stTopNavDropdownLink"][aria-current="page"] {
+  border-color: rgba(var(--chip-rgb),.72) !important;
+  background: linear-gradient(145deg, rgba(var(--chip-rgb),.25), rgba(17,24,39,.98) 58%) !important;
+  box-shadow: 0 10px 26px rgba(2,6,23,.3), 0 0 22px rgba(var(--chip-rgb),.14),
+              inset 0 1px 0 rgba(255,255,255,.07) !important;
+  color: #F8FAFC !important;
+}
+[data-testid="stTopNavLink"]:focus-visible,
+[data-testid="stTopNavDropdownLink"]:focus-visible {
+  outline: 2px solid rgba(var(--chip-rgb),.75) !important;
+  outline-offset: 2px !important;
+}
+[data-testid="stTopNavLink"] *,
+[data-testid="stTopNavDropdownLink"] * { color: #CBD5E1 !important; }
+[data-testid="stTopNavLink"][aria-current="page"] *,
+[data-testid="stTopNavDropdownLink"][aria-current="page"] * { color: #F8FAFC !important; }
+[data-testid="stTopNavLink"] p,
+[data-testid="stTopNavDropdownLink"] p {
+  margin: 0 !important; font-size: .83rem !important; font-weight: 650 !important;
+  letter-spacing: -.01em !important; line-height: 1.15 !important;
+}
+[data-testid="stTopNavLink"] [data-testid="stIconMaterial"],
+[data-testid="stTopNavDropdownLink"] [data-testid="stIconMaterial"] {
+  width: 1.62rem !important; height: 1.62rem !important; flex: 0 0 1.62rem !important;
+  border: 1px solid rgba(var(--chip-rgb),.34) !important; border-radius: 999px !important;
+  background: rgba(var(--chip-rgb),.15) !important; color: var(--chip) !important;
+  font-size: .97rem !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+[data-testid="stTopNavLink"][aria-current="page"] [data-testid="stIconMaterial"],
+[data-testid="stTopNavDropdownLink"][aria-current="page"] [data-testid="stIconMaterial"] {
+  background: rgba(var(--chip-rgb),.3) !important; color: #F8FAFC !important;
+  box-shadow: 0 0 14px rgba(var(--chip-rgb),.24), inset 0 1px 0 rgba(255,255,255,.14) !important;
+}
+[data-testid="stTopNavSection"] {
+  min-height: 2.38rem !important; margin: .16rem .1rem !important;
+  padding: .4rem .8rem !important; border: 1px solid rgba(148,163,184,.16) !important;
+  border-radius: 14px !important; background: #111827 !important; color: #CBD5E1 !important;
+  box-shadow: 0 8px 22px rgba(2,6,23,.2), inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+[data-testid="stTopNavPopoverBody"] {
+  padding: .35rem !important; border: 1px solid #1F2937 !important; border-radius: 16px !important;
+  background: #0F172A !important; box-shadow: 0 22px 48px rgba(2,6,23,.45) !important;
+}
+[data-testid="stTopNavDropdownLink"] { width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
+
+/* sub-tab switcher used across pages (ui.sections()) — the same dark
+   card-chip language as the main tabs: separate cards, each with a coloured
+   circular icon bubble. Real markup: div[role="radiogroup"] holding
+   button[data-variant="segmented_control"][role="radio"] elements. */
 div[role="radiogroup"][aria-label="Section"] {
-  display: inline-flex !important; flex-wrap: wrap; gap: 4px !important; padding: 5px !important;
-  background: #0B1220 !important; border: 1px solid #1F2937 !important; border-radius: 999px !important;
+  display: flex !important; flex-wrap: wrap !important; gap: .55rem !important;
+  padding: 2px !important; background: transparent !important; border: none !important;
+  border-radius: 0 !important; box-shadow: none !important; overflow: visible !important;
+  -webkit-mask-image: none !important; mask-image: none !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
-  border-radius: 999px !important; margin: 0 !important; border: none !important;
-  background: transparent !important; color: #94A3B8 !important; font-weight: 600 !important;
-  padding: .5rem 1.15rem !important; box-shadow: none !important;
-  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
+  --chip: #38BDF8; --chip-rgb: 56,189,248;
+  flex: 0 1 auto !important; height: auto !important; min-height: 2.72rem !important;
+  border-radius: 14px !important; margin: 0 !important;
+  border: 1px solid rgba(148,163,184,.16) !important;
+  background: linear-gradient(145deg, rgba(17,24,39,.96), rgba(11,15,23,.94)) !important;
+  color: #CBD5E1 !important; font-weight: 650 !important;
+  padding: .42rem .78rem .42rem .48rem !important;
+  box-shadow: 0 8px 22px rgba(2,6,23,.18), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  transition: background .18s ease, border-color .18s ease, box-shadow .18s ease, color .18s ease;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(2) {
+  --chip: #C084FC; --chip-rgb: 192,132,252;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(3) {
+  --chip: #34D399; --chip-rgb: 52,211,153;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(4) {
+  --chip: #FBBF24; --chip-rgb: 251,191,36;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(5) {
+  --chip: #F87171; --chip-rgb: 248,113,113;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(6) {
+  --chip: #60A5FA; --chip-rgb: 96,165,250;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:nth-of-type(7) {
+  --chip: #FB923C; --chip-rgb: 251,146,60;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
-  color: inherit !important; margin: 0 !important; font-weight: 600 !important; font-size: .92rem !important;
+  color: inherit !important; margin: 0 !important; font-weight: 650 !important; font-size: .9rem !important;
 }
-div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:hover {
-  color: #E2E8F0 !important;
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {
+  width: 1.66rem !important; height: 1.66rem !important; flex: 0 0 1.66rem !important;
+  border: 1px solid rgba(var(--chip-rgb),.34) !important; border-radius: 999px !important;
+  background: rgba(var(--chip-rgb),.15) !important; color: var(--chip) !important;
+  font-size: .98rem !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.08) !important;
 }
-div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"] {
-  background: linear-gradient(180deg, rgba(56,189,248,.24), rgba(56,189,248,.12)) !important;
-  color: #7DD3FC !important;
-  box-shadow: 0 2px 10px rgba(56,189,248,.2), inset 0 0 0 1px rgba(56,189,248,.4) !important;
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:hover,
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-hovered] {
+  border-color: rgba(var(--chip-rgb),.48) !important; color: #F1F5F9 !important;
+  background: linear-gradient(145deg, rgba(var(--chip-rgb),.14), rgba(17,24,39,.97) 58%) !important;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"],
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-selected] {
+  border-color: rgba(var(--chip-rgb),.72) !important; color: #F8FAFC !important;
+  background: linear-gradient(145deg, rgba(var(--chip-rgb),.25), rgba(17,24,39,.98) 58%) !important;
+  box-shadow: 0 10px 26px rgba(2,6,23,.28), 0 0 22px rgba(var(--chip-rgb),.13),
+              inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"] [data-testid="stIconMaterial"],
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-selected] [data-testid="stIconMaterial"] {
+  background: rgba(var(--chip-rgb),.3) !important; color: #F8FAFC !important;
+  box-shadow: 0 0 14px rgba(var(--chip-rgb),.24), inset 0 1px 0 rgba(255,255,255,.14) !important;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-focus-visible] {
+  outline: 2px solid rgba(var(--chip-rgb),.75) !important; outline-offset: 2px !important;
 }
 
 /* phone layout: switches automatically on screens up to 768px wide */
@@ -130,11 +266,25 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   .dchip-row { font-size: .78rem; padding: .5rem .2rem; }
   .dchip-val { font-size: .8rem; }
   .dchip-pct { font-size: .68rem; }
+  [data-testid="stTopNav"] { padding: .22rem .45rem !important; }
+  [data-testid="stTopNavLink"],
+  [data-testid="stTopNavSection"] { min-height: 2.32rem !important; }
+  [data-testid="stTopNavLink"] { padding: .3rem .58rem .3rem .34rem !important; }
+  [data-testid="stTopNavLink"] p { font-size: .8rem !important; }
+  [data-testid="stTopNavLink"] [data-testid="stIconMaterial"] {
+    width: 1.55rem !important; height: 1.55rem !important; flex-basis: 1.55rem !important;
+    font-size: .94rem !important;
+  }
+  div[role="radiogroup"][aria-label="Section"] { gap: .45rem !important; }
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
-    padding: .42rem .8rem !important;
+    min-height: 2.5rem !important; padding: .36rem .62rem .36rem .4rem !important;
   }
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
-    font-size: .78rem !important;
+    font-size: .8rem !important;
+  }
+  div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {
+    width: 1.5rem !important; height: 1.5rem !important; flex-basis: 1.5rem !important;
+    font-size: .9rem !important;
   }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
@@ -174,6 +324,34 @@ def fmt(df, cols, d=0):
 
 
 # ------------------------------------------------------------------ navigation
+SECTION_ICONS = {
+    "New Invoice": "post_add",
+    "Invoices": "receipt_long",
+    "Sale Orders": "assignment",
+    "Payments": "payments",
+    "Finished Goods": "inventory_2",
+    "Raw Materials": "layers",
+    "Batches": "inventory",
+    "Recipe": "menu_book",
+    "Production": "factory",
+    "Damages": "warning",
+    "Suppliers": "local_shipping",
+    "Purchases": "shopping_bag",
+    "Supplier Payments": "account_balance_wallet",
+    "Plant Expenses": "payments",
+    "Owner Draws": "person",
+    "By Category": "bar_chart",
+    "Sales By Products": "bar_chart",
+}
+
+
+def _section_label(option):
+    """Display-only label: Streamlit turns the leading Material icon into the
+    circular icon styled by the CSS above, while the returned/stored value
+    remains the original plain option text used throughout the views."""
+    return f":material/{SECTION_ICONS.get(option, 'label')}: {option}"
+
+
 def sections(options, key, default=None):
     """Tab-like switcher that remembers its choice, and can be switched from code."""
     gk = "goto_" + key
@@ -184,9 +362,11 @@ def sections(options, key, default=None):
     if st.session_state.get(key) not in options:
         st.session_state[key] = default or options[0]
     try:
-        sel = st.segmented_control("Section", options, key=key, label_visibility="collapsed")
+        sel = st.segmented_control("Section", options, key=key, format_func=_section_label,
+                                   label_visibility="collapsed")
     except AttributeError:
-        sel = st.radio("Section", options, key=key, horizontal=True, label_visibility="collapsed")
+        sel = st.radio("Section", options, key=key, format_func=_section_label,
+                       horizontal=True, label_visibility="collapsed")
     return sel if sel in options else (default or options[0])
 
 

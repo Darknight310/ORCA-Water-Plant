@@ -31,8 +31,6 @@ if not summ.empty:
     owed = float(summ.loc[summ["balance_due"] > 0, "balance_due"].sum())
     open_count = int((summ["balance_due"] > 0).sum())
 raw_val = float(raw["stock_value"].sum()) if not raw.empty else 0.0
-fg_val = float(fg["stock_value"].sum()) if not fg.empty else 0.0
-bundles = float(fg["balance"].sum()) if not fg.empty else 0.0
 total_sold = float(fg["sold"].sum()) if not fg.empty else 0.0
 low = []
 if not raw.empty:
@@ -64,7 +62,8 @@ with d1:
 with d2:
     ui.tile("raw", "Raw Material Stock Value", "PKR " + ui.money(raw_val), str(len(raw)) + " Items", STOCK)
 with d3:
-    ui.tile("fg", "Finished Goods Value", "PKR " + ui.money(fg_val), ui.money(bundles) + " Bundles In Stock", STOCK)
+    ui.tile("exp", "Expenses", "PKR " + ui.money(p["operating_expenses"]),
+            f"{pct(p['operating_expenses']):.1f}% Of Net Sales", EXPENSES)
 with d4:
     sub = "Needs Attention" if low else ("All Stock Healthy" if levels_set else "Set Alert Levels In Stock")
     ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK)

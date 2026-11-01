@@ -28,7 +28,7 @@ def settings_form(df, table_name, key, level_col, unit_label):
     if df.empty:
         return
     with st.expander("Physical Count & Alert Level", expanded=True):
-        st.caption("Enter what you actually counted. The app adjusts the starting stock so the balance matches your count.")
+        st.caption("Enter what you actually counted. The app adjusts the recorded batches, so every stock number matches your count.")
         name = st.selectbox("Item", df["name"].tolist(), index=None, placeholder="Choose An Item", key="set_item_" + key)
         if name:
             r = df[df["name"] == name].iloc[0]
@@ -40,9 +40,12 @@ def settings_form(df, table_name, key, level_col, unit_label):
             level = b.number_input("Alert Me When Stock Falls To (" + unit_label + ")", min_value=0.0, value=cur,
                                    step=1.0, key="set_lvl_" + key + str(rid))
             if st.button("Save", type="primary", key="set_save_" + key + str(rid)):
-                new_open = float(count) - (float(r["balance"]) - float(r["opening_stock"]))
                 try:
-                    db.update(table_name, rid, {"opening_stock": new_open, level_col: float(level)})
+                    if table_name == "raw_materials":
+                        db.adjust_raw_physical_count(rid, float(count), float(level))
+                    else:
+                        fb = float(r["std_cost"]) if "std_cost" in r and pd.notna(r["std_cost"]) else 0.0
+                        db.adjust_fg_physical_count(rid, float(count), float(level), fallback_unit_cost=fb)
                     st.session_state["flash"] = name + " updated."
                     st.rerun()
                 except Exception as e:
@@ -63,7 +66,7 @@ if section == "Finished Goods":
         v = fg.assign(margin=fg["avg_rate"] - fg["std_cost"]).sort_values("name")
 
         def show_details(r):
-            st.caption("Cost per bundle = recipe × average raw material cost. "
+            st.caption("Cost / Bundle is today's estimated cost (recipe x current batch costs). Profit uses the actual batch cost locked at sale time. "
                        "Status shows 'Set level' until you set an alert level.")
 
         ui.entity_table(
@@ -78,8 +81,37 @@ if section == "Finished Goods":
                     {"col": "min_stock", "label": "Alert Level (Min Stock, Bundles)", "kind": "num"}],
             label=lambda r: str(r["name"]),
             can_delete=lambda r: False)
-        st.caption("Cost per bundle = recipe × average raw material cost. Status shows 'Set level' until you set an alert level. "
-                   "Opening Stock can only be changed using Physical Count above, to keep it matching your real count.")
+        st.caption("Cost / Bundle is today's estimated cost (recipe x current batch costs); sold bundles keep their actual cost, locked at sale time. Status shows 'Set level' until you set an alert level. "
+                   "Use Physical Count above to correct stock to your real count.")
+
+    with st.expander("Add A New Product", expanded=False):
+        pn = st.session_state.setdefault("prod_n", 0)
+        pa, pb = st.columns(2)
+        pname_new = pa.text_input("Product Name", key="prod_name_" + str(pn))
+        pcode = pb.text_input("Code", value=db.next_code(products["code"].tolist() if not products.empty else [], "PROD-"),
+                              key="prod_code_" + str(pn))
+        pc, pd2, pe = st.columns(3)
+        poq = pc.number_input("Bundles You Have Now (Opening Stock)", min_value=0.0, step=1.0, key="prod_oq_" + str(pn))
+        poc = pd2.number_input("Cost Per Bundle For That Stock (PKR)", min_value=0.0, step=1.0, format="%.2f", key="prod_oc_" + str(pn))
+        pmin = pe.number_input("Alert Level (Bundles, Optional)", min_value=0.0, step=1.0, key="prod_min_" + str(pn))
+        st.caption("After adding it, set what goes into one bundle in the Recipe section, then record Production for it as usual.")
+        if st.button("Add Product", type="primary", key="prod_save_" + str(pn)):
+            if not pname_new.strip():
+                st.error("Enter a product name.")
+            elif not products.empty and pname_new.strip().lower() in products["name"].str.lower().tolist():
+                st.error("A product with this name already exists.")
+            elif not pcode.strip():
+                st.error("Enter a code.")
+            elif float(poq) > 0 and float(poc) <= 0:
+                st.error("Enter the cost per bundle for the opening stock (so its profit is calculated correctly).")
+            else:
+                try:
+                    db.create_product(pcode.strip(), pname_new.strip(), float(pmin), float(poq), float(poc))
+                    st.session_state["prod_n"] = pn + 1
+                    st.session_state["flash"] = pname_new.strip() + " added. Now set its recipe in the Recipe section."
+                    st.rerun()
+                except Exception as ex:
+                    st.error("Could not add: " + str(ex))
 
 # ============================================================== RAW MATERIALS
 elif section == "Raw Materials":
@@ -108,8 +140,7 @@ elif section == "Raw Materials":
                 st.error("That raw material already exists.")
             else:
                 try:
-                    db.insert("raw_materials", {"code": code.strip(), "name": nm.strip(), "unit": unit.strip() or "Pcs",
-                                                "opening_stock": float(oq), "opening_unit_cost": float(oc)})
+                    db.create_raw_material(code.strip(), nm.strip(), unit.strip() or "Pcs", float(oq), float(oc))
                     st.session_state["rm_n"] = n + 1
                     st.session_state["flash"] = nm.strip() + " added."
                     st.rerun()
@@ -241,8 +272,8 @@ elif section == "Production":
                     ui.table(ui.fmt(pd.DataFrame(preview), ["Quantity", "Unit Cost", "Cost"], 2))
                     st.caption("Estimated Production Cost: PKR " + ui.money(total_cost_preview, 2))
                     if shortfall_any:
-                        st.warning("Some raw materials don't have enough batch stock on record. You can still save — "
-                                  "a catch-up batch will be created automatically at the last known price.")
+                        st.error("Some raw materials don't have enough batch stock on record, so this production cannot be saved yet. "
+                                  "Record the missing Purchase (or correct the batches) first - stock is never invented.")
             if st.button("Save Production", type="primary", key="prd_save_" + str(n)):
                 if not prod:
                     st.error("Choose the product.")
@@ -250,6 +281,9 @@ elif section == "Production":
                     st.error("Enter the number of bundles.")
                 elif not need_ok:
                     st.error("This product has no recipe yet. Add it in the Recipe section first.")
+                elif shortfall_any:
+                    st.error("Not enough raw-material batch stock recorded - nothing was saved. "
+                             "Record the missing purchase or opening batch first, then save again.")
                 else:
                     try:
                         _, total_cost = db.record_production(pdt.isoformat(), batch.strip() or None, pid, bundles,
@@ -327,8 +361,8 @@ else:
                     if shortfall > 1e-9:
                         fallback = plan[-1]["unit_cost"] if plan else float(src.loc[src["id"] == item_id, "avg_cost"].iloc[0])
                         est += shortfall * fallback
-                        st.warning("Not enough batch stock recorded for this quantity — the extra amount will be "
-                                  "added automatically as a catch-up batch at the last known price.")
+                        st.error("Not enough batch stock recorded for this quantity, so this damage cannot be saved yet. "
+                                  "Correct the batches / stock first - stock is never invented.")
                     st.caption("This will be taken from " + str(max(len(plan), 1)) + " batch(es), oldest first. "
                               "Estimated loss: PKR " + ui.money(est, 2))
             else:
@@ -341,8 +375,8 @@ else:
                         else:
                             fallback = float(src.loc[src["id"] == item_id, "std_cost"].iloc[0])
                         est += shortfall * fallback
-                        st.warning("Not enough finished-goods batch stock recorded for this quantity — the extra "
-                                  "amount will be added automatically as a catch-up batch at the last known cost.")
+                        st.error("Not enough finished-goods stock recorded for this quantity, so this damage cannot be saved yet. "
+                                  "Record the missing production first - stock is never invented.")
                     st.caption("This will be taken from " + str(max(len(plan), 1)) + " production batch(es), oldest first. "
                               "Estimated loss: PKR " + ui.money(est, 2))
 
@@ -353,6 +387,11 @@ else:
                 st.error("Enter a quantity.")
             else:
                 try:
+                    _plan, _short = (db.fifo_plan(item_id, float(dqty)) if kind == "Raw Material"
+                                     else db.fg_fifo_plan(item_id, float(dqty)))
+                    if _short > 1e-9:
+                        raise ValueError("Not enough recorded stock for this damage quantity (short by "
+                                         + format(_short, "g") + "). Nothing was saved.")
                     if kind == "Raw Material":
                         db.record_raw_damage(ddate.isoformat(), item_id, float(dqty), reason, notes.strip() or None)
                     else:

@@ -66,6 +66,35 @@ def lines_frame(lines_df):
         "Discount (PKR)": lines_df["line_discount"].astype(float).values}).reset_index(drop=True)
 
 
+def fg_stock_errors(valid, mode, pre):
+    """Checks (before anything is written) that recorded finished stock can cover this
+    invoice. When editing, the invoice's own old bundles count as available, because
+    they are put back before the new lines take stock again."""
+    if valid.empty:
+        return []
+    totals = {}
+    for _, r in valid.iterrows():
+        pid = int(pid_by_name[r["Product"]])
+        totals[pid] = totals.get(pid, 0.0) + float(r["Bundles"])
+    old = {}
+    if mode == "edit" and pre:
+        il = db.get("invoice_lines", order="id")
+        mine = il[il["invoice_id"] == int(pre["invoice_id"])] if not il.empty else il
+        for _, r in mine.iterrows():
+            old[int(r["product_id"])] = old.get(int(r["product_id"]), 0.0) + float(r["qty"])
+    errors = []
+    for pid, qty in totals.items():
+        extra = max(qty - old.get(pid, 0.0), 0.0)
+        if extra <= 1e-9:
+            continue
+        _plan, short = db.fg_fifo_plan(pid, extra)
+        if short > 1e-9:
+            available = (extra - short) + old.get(pid, 0.0)
+            errors.append(str(pname.get(pid, pid)) + ": this invoice needs " + format(qty, "g")
+                          + " bundle(s) but only " + format(available, "g") + " are in finished stock")
+    return errors
+
+
 section = ui.sections(["New Invoice", "Invoices", "Sale Orders", "Payments"], "sales_tab")
 
 # ============================================================== NEW INVOICE
@@ -88,7 +117,7 @@ if section == "New Invoice":
     default_no = pre["invoice_no"] if mode == "edit" else db.next_no(existing, "INV#")
     c1, c2, c3 = st.columns([1, 1, 2])
     inv_no = c1.text_input("Invoice No.", value=default_no, key="inv_no_" + str(n))
-    inv_date = c2.date_input("Date", value=pre["date"] if mode == "edit" else dt.date.today(), key="inv_date_" + str(n))
+    inv_date = c2.date_input("Date", value=pre.get("date", dt.date.today()) if pre else dt.date.today(), key="inv_date_" + str(n))
     cidx = cust_names.index(pre["customer"]) if pre and pre["customer"] in cust_names else None
     cust = c3.selectbox("Customer", cust_names, index=cidx, placeholder="Choose A Customer", key="inv_cust_" + str(n))
 
@@ -96,6 +125,9 @@ if section == "New Invoice":
     if not fg.empty and fg["sold"].sum() > 0:
         rates = ", ".join(r["name"] + ": " + ui.money(r["avg_rate"]) for _, r in fg.iterrows() if r["avg_rate"] > 0)
         st.caption("Your average selling rates so far, per bundle  →  " + rates)
+    if not fg.empty:
+        stock_txt = ", ".join(r["name"] + ": " + ui.money(r["balance"]) for _, r in fg.iterrows())
+        st.caption("Finished stock available right now (bundles) \u2192  " + stock_txt)
     lines = editor("inv_lines_" + str(n), pre["lines"] if pre else blank_lines())
     valid = clean(lines)
     gross = float((valid["Bundles"] * valid["Rate (PKR)"]).sum())
@@ -124,6 +156,7 @@ if section == "New Invoice":
         no = inv_no.strip()
         others = [x for x in existing if not (mode == "edit" and x == pre["invoice_no"])]
         got = 0.0
+        stock_errors = fg_stock_errors(valid, mode, pre) if cust and not valid.empty else []
         if mode == "edit":
             got = float(summ.loc[summ["id"] == pre["invoice_id"], "received"].iloc[0])
         if not cust:
@@ -140,6 +173,10 @@ if section == "New Invoice":
             st.error("Payment received cannot be more than the invoice total.")
         elif mode == "edit" and net < got - 0.01:
             st.error("The total cannot be less than the payments already received (PKR " + ui.money(got) + ").")
+        elif stock_errors:
+            st.error("Not enough finished stock recorded - nothing was saved. Record the missing "
+                     "Production first (Stock & Production \u2192 Production), then save this invoice again. "
+                     + " \u00b7 ".join(stock_errors))
         else:
             try:
                 cust_id = int(cid_by_name[cust])
@@ -329,7 +366,8 @@ elif section == "Sale Orders":
 
         def convert_order(r):
             st.session_state["inv_pre"] = {
-                "mode": "order", "order_id": int(r["id"]), "order_no": r["order_no"], "customer": r["customer_name"],
+                "mode": "order", "order_id": int(r["id"]), "order_no": r["order_no"],
+                "date": pd.to_datetime(r["order_date"]).date(), "customer": r["customer_name"],
                 "discount": float(r["order_discount"]), "lines": lines_frame(order_lines(r))}
             st.session_state["inv_n"] = st.session_state.get("inv_n", 0) + 1
             ui.goto("sales_tab", "New Invoice")

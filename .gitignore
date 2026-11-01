@@ -1,0 +1,14 @@
+# Secrets must never be committed
+.streamlit/secrets.toml
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local exports / scratch
+*.xlsx
+*.pdf

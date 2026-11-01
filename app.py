@@ -1,5 +1,7 @@
+import base64
 import datetime as dt
 import hmac
+import json
 import time
 
 import streamlit as st
@@ -12,17 +14,56 @@ st.set_page_config(page_title="ORCA Water", layout="wide", initial_sidebar_state
 ui.inject_css()
 
 
+def _supabase_key():
+    try:
+        return st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets.get("SUPABASE_KEY")
+    except Exception:
+        return None
+
+
 def secrets_ok():
     try:
-        return all(k in st.secrets for k in ("SUPABASE_URL", "SUPABASE_KEY", "APP_PASSWORD"))
+        return bool(st.secrets.get("SUPABASE_URL") and _supabase_key() and st.secrets.get("APP_PASSWORD"))
     except Exception:
         return False
 
 
+def _key_is_public(key):
+    """True if the configured key is a public (anon / publishable) key. This app runs
+    entirely on the server behind the app password, and the database is deliberately
+    locked so public keys can access nothing - so a public key here means the wrong
+    key was pasted into the secrets."""
+    if not key:
+        return False
+    k = str(key).strip()
+    if k.startswith("sb_publishable_"):
+        return True
+    if k.startswith("sb_secret_"):
+        return False
+    parts = k.split(".")
+    if len(parts) == 3:  # legacy JWT key: read (not verify) the role claim
+        try:
+            payload = parts[1] + "=" * (-len(parts[1]) % 4)
+            role = json.loads(base64.urlsafe_b64decode(payload)).get("role")
+            return role in ("anon", "authenticated")
+        except Exception:
+            return False
+    return False
+
+
 if not secrets_ok():
     st.error("The app's secrets are not set yet.")
-    st.markdown("In Streamlit: **Manage App → Settings → Secrets**, then add "
-                "`SUPABASE_URL`, `SUPABASE_KEY` and `APP_PASSWORD`.")
+    st.markdown("In Streamlit: **Manage App \u2192 Settings \u2192 Secrets**, then add "
+                "`SUPABASE_URL`, `SUPABASE_SERVICE_KEY` (the service_role / secret key - "
+                "the older name `SUPABASE_KEY` also works) and `APP_PASSWORD`.")
+    st.stop()
+
+if _key_is_public(_supabase_key()):
+    st.error("Wrong Supabase key: a public (anon / publishable) key is set in the app secrets.")
+    st.markdown("This database is locked so public keys can access **nothing**. In Streamlit "
+                "**Settings \u2192 Secrets**, set `SUPABASE_SERVICE_KEY` to the **service_role / secret** "
+                "key from Supabase (Project Settings \u2192 API). Keep that key only in these "
+                "server-side secrets - never put it in code or share it.")
     st.stop()
 
 @st.cache_resource

@@ -9,15 +9,21 @@ PAGE = 1000
 METHODS = ["Cash", "Bank Transfer", "Easypaisa / JazzCash", "Cheque", "Other"]
 EXPORT_SHEETS = ["customers", "products", "raw_materials", "recipe", "invoices", "invoice_lines",
                  "payments", "purchases", "production", "damages", "expenses",
-                 "v_invoice_summary", "v_raw_stock", "v_product_stock"]
+                 "v_invoice_summary", "v_raw_stock", "v_product_stock", "v_pnl",
+                 "v_product_cost", "v_sale_order_summary"]
 OPTIONAL_SHEETS = ["suppliers", "sale_orders", "sale_order_lines", "raw_material_batches",
                    "production_batch_usage", "sale_batch_usage", "supplier_payments"]
+
+
+def _supabase_key():
+    # Preferred name is SUPABASE_SERVICE_KEY; SUPABASE_KEY kept for older deployments.
+    return st.secrets.get("SUPABASE_SERVICE_KEY") or st.secrets["SUPABASE_KEY"]
 
 
 @st.cache_resource
 def _client():
     from supabase import create_client
-    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+    return create_client(st.secrets["SUPABASE_URL"], _supabase_key())
 
 
 @st.cache_data(ttl=15, show_spinner=False)
@@ -190,8 +196,8 @@ def fifo_plan(raw_material_id, qty_needed):
 
 def consume_fifo(raw_material_id, qty_needed):
     """Actually takes stock out of the oldest batch(es) first. If there isn't enough
-    recorded batch stock, it automatically creates a small catch-up batch (at the last
-    known price) so the numbers stay balanced, instead of blocking you from saving.
+    recorded batch stock, NOTHING is changed and a clear error is raised - stock is
+    never invented. Record the missing purchase / opening batch first, then retry.
     Returns the plan that was actually used."""
     raw_material_id = int(raw_material_id)
     qty_needed = float(qty_needed)
@@ -209,14 +215,10 @@ def consume_fifo(raw_material_id, qty_needed):
         updates.append((int(b["id"]), float(b["qty_remaining"]) - take))
         remaining -= take
     if remaining > 1e-9:
-        fallback_cost = float(all_batches.sort_values("batch_date").iloc[-1]["unit_cost"]) if not all_batches.empty else 0.0
-        made = insert("raw_material_batches", {
-            "raw_material_id": raw_material_id, "batch_date": dt.date.today().isoformat(),
-            "source": "Auto (Stock Shortfall)",
-            "ref": "Created automatically because recorded batch stock ran out",
-            "qty_in": remaining, "unit_cost": fallback_cost, "qty_remaining": 0})
-        plan.append({"batch_id": made[0]["id"], "batch_date": dt.date.today().isoformat(),
-                     "qty": remaining, "unit_cost": fallback_cost})
+        raise ValueError("Not enough recorded raw-material batch stock (material ID "
+                         + str(raw_material_id) + "): short by " + format(remaining, "g")
+                         + ". Nothing was saved. Record the missing purchase or opening "
+                         "batch first, then try again.")
     for bid, new_rem in updates:
         _client().table("raw_material_batches").update({"qty_remaining": new_rem}).eq("id", bid).execute()
     st.cache_data.clear()
@@ -304,6 +306,18 @@ def record_production(production_date, batch_ref, product_id, bundles, notes, re
     product_id = int(product_id)
     bundles = float(bundles)
     need = recipe_df[recipe_df["product_id"] == product_id]
+    shortages = []
+    for _, rc in need.iterrows():
+        qty_needed = float(rc["qty_per_bundle"]) * bundles
+        if qty_needed <= 0:
+            continue
+        _plan, short = fifo_plan(int(rc["raw_material_id"]), qty_needed)
+        if short > 1e-9:
+            shortages.append("material ID " + str(int(rc["raw_material_id"]))
+                             + " short by " + format(short, "g"))
+    if shortages:
+        raise ValueError("Not enough raw-material batch stock for this production ("
+                         + "; ".join(shortages) + "). Nothing was saved.")
     usage, total_cost = [], 0.0
     for _, rc in need.iterrows():
         qty_needed = float(rc["qty_per_bundle"]) * bundles
@@ -368,8 +382,8 @@ def fg_fifo_plan(product_id, qty_needed):
 
 def consume_fg_fifo(product_id, qty_needed):
     """Takes finished stock out of the oldest production run(s) first. If there isn't enough
-    recorded finished stock, it automatically creates a small catch-up production batch (at
-    the last known cost per bundle) so the numbers stay balanced. Returns the plan used."""
+    recorded finished stock, NOTHING is changed and a clear error is raised - finished
+    stock is never invented. Record the missing production first, then retry."""
     product_id = int(product_id)
     qty_needed = float(qty_needed)
     all_batches = get_fg_batches(product_id, only_available=False)
@@ -388,19 +402,10 @@ def consume_fg_fifo(product_id, qty_needed):
         updates.append((int(b["id"]), float(b["qty_remaining"]) - take))
         remaining -= take
     if remaining > 1e-9:
-        if not all_batches.empty:
-            last = all_batches.sort_values("production_date").iloc[-1]
-            lb = float(last["bundles"]) or 1.0
-            fallback_cost = float(last["total_cost"] or 0) / lb
-        else:
-            fallback_cost = 0.0
-        made = insert("production", {
-            "production_date": dt.date.today().isoformat(), "batch_ref": "Auto (Stock Shortfall)",
-            "product_id": product_id, "bundles": remaining,
-            "notes": "Created automatically because recorded finished-goods stock ran out",
-            "total_cost": remaining * fallback_cost, "qty_remaining": 0})
-        plan.append({"production_id": made[0]["id"], "production_date": dt.date.today().isoformat(),
-                     "qty": remaining, "unit_cost": fallback_cost})
+        raise ValueError("Not enough recorded finished stock (product ID "
+                         + str(product_id) + "): short by " + format(remaining, "g")
+                         + " bundle(s). Nothing was changed by this step. Record the "
+                         "missing production first, then try again.")
     for pid_, new_rem in updates:
         _client().table("production").update({"qty_remaining": new_rem}).eq("id", pid_).execute()
     st.cache_data.clear()
@@ -458,3 +463,120 @@ def record_fg_damage(damage_date, product_id, qty, reason, notes):
         "damage_date": damage_date, "damage_type": "Finished Goods", "raw_material_id": None,
         "product_id": product_id, "qty": qty, "reason": reason, "notes": notes,
         "unit_cost_at_time": avg_cost, "fg_batch_id": plan[0]["production_id"] if plan else None})
+
+
+# ====================================================== STOCK SET-UP & COUNTS
+def create_raw_material(code, name, unit, opening_qty, opening_unit_cost):
+    """Creates a raw material AND its opening batch, so the batch register and the
+    stock register agree from day one."""
+    opening_qty = float(opening_qty)
+    opening_unit_cost = float(opening_unit_cost)
+    mat = insert("raw_materials", {"code": code, "name": name, "unit": unit or "Pcs",
+                                   "opening_stock": opening_qty,
+                                   "opening_unit_cost": opening_unit_cost})[0]
+    if opening_qty > 0:
+        try:
+            insert("raw_material_batches", {
+                "raw_material_id": int(mat["id"]), "batch_date": dt.date.today().isoformat(),
+                "source": "Opening (Day Zero)", "ref": "Opening stock",
+                "qty_in": opening_qty, "unit_cost": opening_unit_cost,
+                "qty_remaining": opening_qty})
+        except Exception:
+            delete("raw_materials", int(mat["id"]))
+            raise
+    return mat
+
+
+def create_product(code, name, min_stock, opening_qty, opening_unit_cost):
+    """Creates a product AND (if opening bundles are given) an opening finished-goods
+    batch for them, so sales can draw on real recorded stock at a real cost."""
+    opening_qty = float(opening_qty)
+    opening_unit_cost = float(opening_unit_cost)
+    prod = insert("products", {"code": code, "name": name, "opening_stock": 0,
+                               "min_stock": float(min_stock) if min_stock and float(min_stock) > 0 else None})[0]
+    if opening_qty > 0:
+        try:
+            insert("production", {
+                "production_date": dt.date.today().isoformat(), "batch_ref": "Opening Stock",
+                "product_id": int(prod["id"]), "bundles": opening_qty,
+                "notes": "Opening finished stock entered when the product was created",
+                "total_cost": opening_qty * opening_unit_cost, "qty_remaining": opening_qty})
+        except Exception:
+            delete("products", int(prod["id"]))
+            raise
+    return prod
+
+
+def adjust_raw_physical_count(raw_material_id, counted, reorder_level):
+    """Makes recorded raw-material batch stock match a physical count. Extra stock
+    becomes a visible 'Physical Count Adjustment' batch; missing stock is taken off
+    the newest batch(es) first. Both stock registers read the batches, so they stay
+    in agreement."""
+    raw_material_id = int(raw_material_id)
+    counted = float(counted)
+    batches = get_batches(raw_material_id, only_available=False)
+    current = float(batches["qty_remaining"].sum()) if not batches.empty else 0.0
+    delta = counted - current
+    if delta > 1e-9:
+        if not batches.empty and current > 0:
+            cost = float((batches["qty_remaining"] * batches["unit_cost"]).sum()) / current
+        elif not batches.empty:
+            cost = float(batches.sort_values(["batch_date", "id"]).iloc[-1]["unit_cost"])
+        else:
+            rm = get("raw_materials", order="id")
+            row = rm[rm["id"] == raw_material_id] if not rm.empty else rm
+            cost = float(row.iloc[0]["opening_unit_cost"]) if not row.empty else 0.0
+        insert("raw_material_batches", {
+            "raw_material_id": raw_material_id, "batch_date": dt.date.today().isoformat(),
+            "source": "Physical Count Adjustment", "ref": "Stock counted higher than recorded",
+            "qty_in": delta, "unit_cost": cost, "qty_remaining": delta})
+    elif delta < -1e-9:
+        need = -delta
+        avail = get_batches(raw_material_id).sort_values(["batch_date", "id"], ascending=False)
+        for _, b in avail.iterrows():
+            if need <= 1e-9:
+                break
+            take = min(float(b["qty_remaining"]), need)
+            if take <= 0:
+                continue
+            update("raw_material_batches", int(b["id"]), {
+                "qty_in": float(b["qty_in"]) - take,
+                "qty_remaining": float(b["qty_remaining"]) - take})
+            need -= take
+    update("raw_materials", raw_material_id, {"reorder_level": float(reorder_level)})
+    return delta
+
+
+def adjust_fg_physical_count(product_id, counted, min_stock, fallback_unit_cost=0.0):
+    """Makes recorded finished-goods batches match a physical count. Extra bundles
+    become a visible 'Physical Count Adjustment' production batch; missing bundles
+    are taken off the newest batch(es) first."""
+    product_id = int(product_id)
+    counted = float(counted)
+    batches = get_fg_batches(product_id, only_available=False)
+    current = float(batches["qty_remaining"].sum()) if not batches.empty else 0.0
+    delta = counted - current
+    if delta > 1e-9:
+        cost = float(fallback_unit_cost or 0.0)
+        if cost <= 0 and not batches.empty:
+            last = batches.sort_values(["production_date", "id"]).iloc[-1]
+            cost = float(last["total_cost"] or 0) / (float(last["bundles"]) or 1.0)
+        insert("production", {
+            "production_date": dt.date.today().isoformat(),
+            "batch_ref": "Physical Count Adjustment", "product_id": product_id,
+            "bundles": delta, "notes": "Stock counted higher than recorded",
+            "total_cost": delta * cost, "qty_remaining": delta})
+    elif delta < -1e-9:
+        need = -delta
+        avail = get_fg_batches(product_id).sort_values(["production_date", "id"], ascending=False)
+        for _, b in avail.iterrows():
+            if need <= 1e-9:
+                break
+            take = min(float(b["qty_remaining"]), need)
+            if take <= 0:
+                continue
+            update("production", int(b["id"]),
+                   {"qty_remaining": float(b["qty_remaining"]) - take})
+            need -= take
+    update("products", product_id, {"min_stock": float(min_stock)})
+    return delta

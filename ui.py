@@ -500,7 +500,22 @@ def _grid(disp, key):
 
 
 def _isnull(v):
-    return v is None or (isinstance(v, float) and pd.isna(v))
+    if v is None:
+        return True
+    try:
+        return bool(pd.isna(v))
+    except (TypeError, ValueError):
+        return False
+
+
+def _same_id(a, b):
+    """ID comparison that copes with Pandas turning 3 into 3.0 when a column has blanks."""
+    if _isnull(a) or _isnull(b):
+        return False
+    try:
+        return int(float(a)) == int(float(b))
+    except (TypeError, ValueError, OverflowError):
+        return a == b
 
 
 def _cell(rec, getter, dec):
@@ -515,8 +530,10 @@ def _cell(rec, getter, dec):
         return str(v)
 
 
-def _edit_form(key, table_name, rec, fields, validate):
-    st.markdown("**Edit Entry**")
+def _edit_form(key, table_name, rec, fields, validate, on_save=None, prepare=None):
+    st.markdown("**Edit Full Line**")
+    st.caption("Change any entered detail on this saved line. Totals, stock and costs that depend on it "
+               "are recalculated or adjusted when you save.")
     values = {}
     cols = st.columns(2)
     for i, f in enumerate(fields):
@@ -525,44 +542,84 @@ def _edit_form(key, table_name, rec, fields, validate):
         wk = "ef_%s_%s_%s" % (key, rec["id"], col)
         cur = rec.get(col)
         kind = f.get("kind", "text")
+        help_text = f.get("help")
         if kind == "text":
-            values[col] = c.text_input(f["label"], value="" if _isnull(cur) else str(cur), key=wk)
+            values[col] = c.text_input(f["label"], value="" if _isnull(cur) else str(cur),
+                                       key=wk, help=help_text)
+        elif kind == "area":
+            values[col] = c.text_area(f["label"], value="" if _isnull(cur) else str(cur),
+                                      key=wk, help=help_text)
         elif kind == "num":
-            values[col] = c.number_input(f["label"], min_value=0.0, value=0.0 if _isnull(cur) else float(cur),
-                                         step=f.get("step", 1.0), key=wk)
+            kwargs = {"min_value": float(f.get("min", 0.0)),
+                      "value": (None if f.get("nullable") else 0.0) if _isnull(cur) else float(cur),
+                      "step": float(f.get("step", 1.0)), "key": wk, "help": help_text}
+            if f.get("max") is not None:
+                kwargs["max_value"] = float(f["max"])
+            if f.get("format"):
+                kwargs["format"] = f["format"]
+            values[col] = c.number_input(f["label"], **kwargs)
         elif kind == "date":
-            values[col] = c.date_input(f["label"], value=pd.to_datetime(cur).date(), key=wk)
+            cur_date = None if _isnull(cur) else pd.to_datetime(cur).date()
+            values[col] = c.date_input(f["label"], value=cur_date, key=wk, help=help_text)
         elif kind == "choice":
             opts = list(f["options"])
-            values[col] = c.selectbox(f["label"], opts, index=opts.index(cur) if cur in opts else None, key=wk)
+            if not _isnull(cur) and cur not in opts:
+                opts.insert(0, cur)
+            values[col] = c.selectbox(f["label"], opts,
+                                      index=opts.index(cur) if not _isnull(cur) and cur in opts else None,
+                                      key=wk, help=help_text, placeholder="Choose")
         elif kind == "select":
-            ids = list(f["options"].keys())
-            names = list(f["options"].values())
-            idx = ids.index(cur) if cur in ids else None
-            pick = c.selectbox(f["label"], names, index=idx, key=wk)
-            values[col] = ids[names.index(pick)] if pick is not None else None
+            options = dict(f["options"])
+            ids = list(options.keys())
+            idx = next((j for j, x in enumerate(ids) if _same_id(x, cur)), None)
+            if idx is None and not _isnull(cur):
+                options[cur] = str(cur)
+                ids.insert(0, cur)
+                idx = 0
+            values[col] = c.selectbox(f["label"], ids, index=idx,
+                                      format_func=lambda x, opts=options: str(opts.get(x, x)),
+                                      key=wk, help=help_text, placeholder="Choose")
     b1, b2 = st.columns(2)
     if b1.button("Save Changes", type="primary", key="es_%s_%s" % (key, rec["id"])):
         payload = {}
         problem = None
         for f in fields:
             col, v, kind = f["col"], values[f["col"]], f.get("kind", "text")
-            if kind == "text":
+            if kind in ("text", "area"):
                 v = (v or "").strip() or None
             elif kind == "num":
-                v = float(v)
+                v = None if v is None else float(v)
             elif kind == "date":
-                v = v.isoformat()
+                v = v.isoformat() if v else None
+            elif kind == "select" and v is not None:
+                # Select fields are ID fields in this app. Keep them as plain ints
+                # even when Pandas had turned the saved ID into 3.0.
+                try:
+                    v = int(float(v))
+                except (TypeError, ValueError, OverflowError):
+                    pass
             if f.get("required") and (v is None or v == ""):
                 problem = f["label"] + " is required."
             payload[col] = v
+        if not problem and prepare:
+            try:
+                prepared = prepare(payload, rec)
+                if prepared is not None:
+                    payload = prepared
+            except Exception as e:
+                problem = str(e)
         if not problem and validate:
             problem = validate(payload, rec)
         if problem:
             st.error(problem)
         else:
             try:
-                db.update(table_name, rec["id"], payload)
+                if on_save:
+                    on_save(payload, rec)
+                elif table_name:
+                    db.update(table_name, rec["id"], payload)
+                else:
+                    raise ValueError("This edit form has nowhere to save.")
                 st.session_state["tv_" + key] = st.session_state.get("tv_" + key, 0) + 1
                 st.session_state.pop("edit_" + key, None)
                 st.session_state["flash"] = "Changes saved."
@@ -575,11 +632,14 @@ def _edit_form(key, table_name, rec, fields, validate):
 
 
 def entity_table(key, df, columns, table=None, fields=None, label=None, on_edit=None, on_delete=None,
-                 extras=None, detail=None, size=200, validate=None, can_edit=None, can_delete=None):
+                 extras=None, detail=None, size=200, validate=None, can_edit=None, can_delete=None,
+                 on_save=None, prepare=None, edit_label="Edit Full Line"):
     """A table you click a row in. Action buttons appear ABOVE the table for the selected row.
 
     columns: list of (header, column name or function(record), decimals or None)
-    fields : edit-form spec for the generic Edit button (needs `table`)
+    fields : edit-form spec for the generic Edit button (needs `table` or `on_save`)
+    on_save: function(payload, record) for edits that must also adjust linked records
+    prepare: function(payload, record) that may add/correct derived fields before validation
     extras : list of (button label, function(record)[, show_if(record)])
     detail : (button label, function(record)) shows extra content above the table
     """
@@ -616,8 +676,8 @@ def entity_table(key, df, columns, table=None, fields=None, label=None, on_edit=
 
     with bar:
         if not sel or sel[0] >= len(recs):
-            if table or on_edit or on_delete or extras or detail:
-                st.caption("Click A Row In The Table To Edit, Delete Or Use More Actions.")
+            if table or fields or on_edit or on_delete or extras or detail:
+                st.caption("Click A Row In The Table To Edit The Full Line, Delete It Or Use More Actions.")
             return
         rec = recs[sel[0]]
         ek, dk, vk = "edit_" + key, "del_" + key, "view_" + key
@@ -630,13 +690,13 @@ def entity_table(key, df, columns, table=None, fields=None, label=None, on_edit=
         for x in (extras or []):
             if len(x) < 3 or x[2](rec):
                 buttons.append(x)
-        if can_delete is None or can_delete(rec):
+        if (table or on_delete) and (can_delete is None or can_delete(rec)):
             buttons.append("delete")
         cols = st.columns(max(len(buttons), 1) + 1)
         for i, b in enumerate(buttons):
             c = cols[i]
             if b == "edit":
-                if c.button("Edit", key=key + "_edit"):
+                if c.button(edit_label, key=key + "_edit"):
                     if on_edit:
                         on_edit(rec)
                     else:
@@ -655,7 +715,7 @@ def entity_table(key, df, columns, table=None, fields=None, label=None, on_edit=
         if st.session_state.get(vk) == rec["id"] and detail:
             detail[1](rec)
         if st.session_state.get(ek) == rec["id"] and fields:
-            _edit_form(key, table, rec, fields, validate)
+            _edit_form(key, table, rec, fields, validate, on_save=on_save, prepare=prepare)
         if st.session_state.get(dk) == rec["id"]:
             st.warning("Delete " + label(rec) + "? This cannot be undone.")
             d1, d2, _ = st.columns([1, 1, 3])

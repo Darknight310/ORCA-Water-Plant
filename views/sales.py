@@ -150,6 +150,8 @@ if section == "New Invoice":
     m1.metric("Gross", "PKR " + ui.money(gross))
     m2.metric("Discounts", "PKR " + ui.money(line_disc + float(inv_disc)))
     m3.metric("Invoice Total", "PKR " + ui.money(net))
+    inv_notes = st.text_input("Notes (Optional)", value=(pre.get("notes") or "") if pre else "",
+                              key="inv_notes_" + str(n))
 
     label = "Save Changes" if mode == "edit" else "Save Invoice"
     if st.button(label, type="primary", key="inv_save_" + str(n)):
@@ -181,7 +183,8 @@ if section == "New Invoice":
             try:
                 cust_id = int(cid_by_name[cust])
                 head = {"invoice_no": no, "invoice_date": inv_date.isoformat(),
-                        "customer_id": cust_id, "invoice_discount": float(inv_disc)}
+                        "customer_id": cust_id, "invoice_discount": float(inv_disc),
+                        "notes": inv_notes.strip() or None}
                 if mode == "edit":
                     inv_id = int(pre["invoice_id"])
                     db.reverse_invoice_lines(inv_id)
@@ -192,6 +195,9 @@ if section == "New Invoice":
                     for nl in new_lines:
                         db.consume_invoice_line_fg(nl["id"], nl["product_id"], nl["qty"])
                     db.update("invoices", inv_id, head)
+                    # Payments also store the customer for history displays; keep
+                    # them with the invoice if its customer was corrected.
+                    db.update_where("payments", "invoice_id", inv_id, {"customer_id": cust_id})
                 else:
                     inv_id = int(db.insert("invoices", head)[0]["id"])
                     try:
@@ -220,10 +226,13 @@ elif section == "Invoices":
     def edit_invoice(r):
         il = db.get("invoice_lines", order="id")
         il = il[il["invoice_id"] == r["id"]]
+        inv = db.get("invoices", order="id")
+        inv_row = inv[inv["id"] == r["id"]] if not inv.empty else inv
+        notes = inv_row.iloc[0]["notes"] if not inv_row.empty and pd.notna(inv_row.iloc[0]["notes"]) else ""
         st.session_state["inv_pre"] = {
             "mode": "edit", "invoice_id": int(r["id"]), "invoice_no": r["invoice_no"],
             "date": pd.to_datetime(r["invoice_date"]).date(), "customer": r["customer_name"],
-            "discount": float(r["invoice_discount"]), "lines": lines_frame(il)}
+            "discount": float(r["invoice_discount"]), "notes": notes, "lines": lines_frame(il)}
         st.session_state["inv_n"] = st.session_state.get("inv_n", 0) + 1
         ui.goto("sales_tab", "New Invoice")
         st.rerun()
@@ -254,6 +263,10 @@ elif section == "Invoices":
         ui.table(ui.fmt(f, cols, 2))
         if r["invoice_discount"] > 0:
             st.caption("Discount on the whole invoice: PKR " + ui.money(r["invoice_discount"]))
+        inv = db.get("invoices", order="id")
+        inv_row = inv[inv["id"] == r["id"]] if not inv.empty else inv
+        if not inv_row.empty and pd.notna(inv_row.iloc[0]["notes"]):
+            st.caption("Notes: " + str(inv_row.iloc[0]["notes"]))
 
     if summ.empty:
         st.info("No invoices yet.")
@@ -318,6 +331,9 @@ elif section == "Sale Orders":
             o_notes = x3.text_input("Notes (Optional)", value=so_pre["notes"] if so_pre else "", key="so_notes_" + str(sn))
             o_net = og - old_ - float(o_disc)
             st.caption("Order total: PKR " + ui.money(o_net))
+            if so_pre and so_pre.get("status") == "Cancelled":
+                st.info("This order is Cancelled. Saving these corrections keeps it Cancelled; use "
+                        "Reopen Order in the list below when you want it Pending again.")
             bl, br = st.columns([1, 5])
             if bl.button("Save Order", type="primary", key="so_save_" + str(sn)):
                 no = o_no.strip()
@@ -368,14 +384,16 @@ elif section == "Sale Orders":
             st.session_state["inv_pre"] = {
                 "mode": "order", "order_id": int(r["id"]), "order_no": r["order_no"],
                 "date": pd.to_datetime(r["order_date"]).date(), "customer": r["customer_name"],
-                "discount": float(r["order_discount"]), "lines": lines_frame(order_lines(r))}
+                "discount": float(r["order_discount"]),
+                "notes": r["notes"] if pd.notna(r["notes"]) else "", "lines": lines_frame(order_lines(r))}
             st.session_state["inv_n"] = st.session_state.get("inv_n", 0) + 1
             ui.goto("sales_tab", "New Invoice")
             st.rerun()
 
         def edit_order(r):
             st.session_state["so_pre"] = {
-                "order_id": int(r["id"]), "order_no": r["order_no"], "date": pd.to_datetime(r["order_date"]).date(),
+                "order_id": int(r["id"]), "order_no": r["order_no"], "status": r["status"],
+                "date": pd.to_datetime(r["order_date"]).date(),
                 "customer": r["customer_name"], "discount": float(r["order_discount"]),
                 "delivery": pd.to_datetime(r["delivery_date"]).date() if pd.notna(r["delivery_date"]) else None,
                 "notes": r["notes"] if pd.notna(r["notes"]) else "", "lines": lines_frame(order_lines(r))}
@@ -386,6 +404,12 @@ elif section == "Sale Orders":
             db.update("sale_orders", int(r["id"]), {"status": "Cancelled"})
             st.session_state["tv_so"] = st.session_state.get("tv_so", 0) + 1
             st.session_state["flash"] = "Order " + r["order_no"] + " cancelled."
+            st.rerun()
+
+        def reopen_order(r):
+            db.update("sale_orders", int(r["id"]), {"status": "Pending", "invoice_id": None})
+            st.session_state["tv_so"] = st.session_state.get("tv_so", 0) + 1
+            st.session_state["flash"] = "Order " + r["order_no"] + " reopened as Pending."
             st.rerun()
 
         def order_items(r):
@@ -409,9 +433,10 @@ elif section == "Sale Orders":
                 "so", v,
                 [("Order", "order_no", None), ("Date", "order_date", None), ("Customer", "customer_name", None),
                  ("Expected Delivery", "delivery_date", None), ("Amount", "net_amount", 0), ("Status", "status", None)],
-                on_edit=edit_order, can_edit=lambda r: r["status"] == "Pending",
+                on_edit=edit_order, can_edit=lambda r: r["status"] in ("Pending", "Cancelled"),
                 extras=[("Convert To Invoice", convert_order, lambda r: r["status"] == "Pending"),
-                        ("Cancel Order", cancel_order, lambda r: r["status"] == "Pending")],
+                        ("Cancel Order", cancel_order, lambda r: r["status"] == "Pending"),
+                        ("Reopen Order", reopen_order, lambda r: r["status"] == "Cancelled")],
                 detail=("View Items", order_items),
                 label=lambda r: r["order_no"] + "  ·  " + r["customer_name"],
                 on_delete=lambda r: db.delete("sale_orders", int(r["id"])))
@@ -465,12 +490,31 @@ elif section == "Payments":
         h["invoice_no"] = h["invoice_id"].map(db.name_map(summ, "invoice_no"))
         h["customer_name"] = h["customer_id"].map(db.name_map(customers))
 
+        invoice_options = {
+            int(r["id"]): (str(r["invoice_no"]) + "  ·  " + str(r["customer_name"]) +
+                           "  ·  Total PKR " + ui.money(r["net_amount"]) +
+                           "  ·  Due PKR " + ui.money(max(float(r["balance_due"]), 0)))
+            for _, r in summ.sort_values("id", ascending=False).iterrows()
+        } if not summ.empty else {}
+
+        def prepare_payment(payload, rec):
+            row = summ[summ["id"] == payload["invoice_id"]]
+            if row.empty:
+                raise ValueError("Choose the invoice this payment belongs to.")
+            payload["customer_id"] = int(row.iloc[0]["customer_id"])
+            return payload
+
         def check_payment(payload, rec):
             if payload["amount"] <= 0:
                 return "Enter an amount."
-            row = summ[summ["id"] == rec["invoice_id"]]
-            if not row.empty and payload["amount"] > float(row.iloc[0]["balance_due"]) + float(rec["amount"]) + 0.01:
-                return "That is more than the invoice balance."
+            row = summ[summ["id"] == payload["invoice_id"]]
+            if row.empty:
+                return "Choose the invoice this payment belongs to."
+            available = float(row.iloc[0]["balance_due"])
+            if int(payload["invoice_id"]) == int(rec["invoice_id"]):
+                available += float(rec["amount"])
+            if payload["amount"] > available + 0.01:
+                return "That is more than the selected invoice balance (PKR " + ui.money(max(available, 0)) + ")."
             return None
 
         ui.entity_table(
@@ -478,9 +522,14 @@ elif section == "Payments":
             [("Date", "payment_date", None), ("Invoice", "invoice_no", None), ("Customer", "customer_name", None),
              ("Amount", "amount", 0), ("Method", "method", None), ("Notes", "notes", None)],
             table="payments",
-            fields=[{"col": "payment_date", "label": "Date", "kind": "date"},
+            fields=[{"col": "payment_date", "label": "Date", "kind": "date", "required": True},
+                    {"col": "invoice_id", "label": "Invoice This Payment Belongs To", "kind": "select",
+                     "options": invoice_options, "required": True},
                     {"col": "amount", "label": "Amount (PKR)", "kind": "num", "step": 100.0},
                     {"col": "method", "label": "Method", "kind": "choice", "options": db.METHODS},
                     {"col": "notes", "label": "Notes"}],
+            prepare=prepare_payment,
             validate=check_payment,
             label=lambda r: str(r["invoice_no"]) + "  ·  " + str(r["customer_name"]) + "  ·  PKR " + ui.money(r["amount"]))
+        st.caption("A payment can be moved to a different invoice if it was attached to the wrong one. "
+                   "Its customer follows the selected invoice automatically, and both invoice balances recalculate.")

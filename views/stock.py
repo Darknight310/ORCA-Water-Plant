@@ -14,6 +14,10 @@ fg = db.get("v_product_stock", order="id")
 recipe = db.get("recipe", order="id")
 batches = db.get("raw_material_batches", order="batch_date")
 prod_usage = db.get("production_batch_usage", order="id")
+try:
+    damage_usage = db.get("damage_batch_usage", order="id")
+except Exception:
+    damage_usage = pd.DataFrame()
 
 pname = db.name_map(products)
 rname = db.name_map(raw)
@@ -78,11 +82,12 @@ if section == "Finished Goods":
             table="products",
             fields=[{"col": "name", "label": "Product Name", "required": True},
                     {"col": "code", "label": "Code", "required": True},
-                    {"col": "min_stock", "label": "Alert Level (Min Stock, Bundles)", "kind": "num"}],
-            label=lambda r: str(r["name"]),
-            can_delete=lambda r: False)
-        st.caption("Cost / Bundle is today's estimated cost (recipe x current batch costs); sold bundles keep their actual cost, locked at sale time. Status shows 'Set level' until you set an alert level. "
-                   "Use Physical Count above to correct stock to your real count.")
+                    {"col": "min_stock", "label": "Alert Level (Min Stock, Bundles)", "kind": "num",
+                     "nullable": True, "help": "Leave blank for no alert level."}],
+            label=lambda r: str(r["name"]))
+        st.caption("Select a product to edit its name, code or alert level. Produced/Sold/Damaged/In Stock are "
+                   "totals from the saved Production, Sales, Damage and Physical Count entries, so correct those "
+                   "source entries when a total is wrong. Delete only works for a product that has never been used.")
 
     with st.expander("Add A New Product", expanded=False):
         pn = st.session_state.setdefault("prod_n", 0)
@@ -149,13 +154,26 @@ elif section == "Raw Materials":
     if raw.empty:
         st.info("No raw materials yet.")
     else:
-        v = raw[["name", "unit", "opening_stock", "purchased_qty", "used_qty", "damaged_qty", "balance",
-                 "avg_cost", "stock_value", "reorder_level", "status"]]
-        v = ui.fmt(v, ["opening_stock", "purchased_qty", "used_qty", "damaged_qty", "balance", "stock_value", "reorder_level"])
-        v = ui.fmt(v, ["avg_cost"], 2)
-        v.columns = ["Raw Material", "Unit", "Opening", "Purchased", "Used", "Damaged", "In Stock",
-                     "Avg Cost", "Stock Value", "Alert Level", "Status"]
-        ui.table(v)
+        v = raw.sort_values("name")
+        ui.entity_table(
+            "rawmat", v,
+            [("Code", "code", None), ("Raw Material", "name", None), ("Unit", "unit", None),
+             ("Opening", "opening_stock", 0), ("Purchased", "purchased_qty", 0),
+             ("Used", "used_qty", 0), ("Damaged", "damaged_qty", 0), ("In Stock", "balance", 0),
+             ("Avg Cost", "avg_cost", 2), ("Stock Value", "stock_value", 0),
+             ("Alert Level", "reorder_level", 0), ("Status", "status", None)],
+            table="raw_materials",
+            fields=[{"col": "code", "label": "Code", "required": True},
+                    {"col": "name", "label": "Raw Material Name", "required": True},
+                    {"col": "unit", "label": "Unit", "required": True},
+                    {"col": "opening_unit_cost", "label": "Opening Cost Per Unit (PKR)",
+                     "kind": "num", "step": 0.1, "format": "%.2f"},
+                    {"col": "reorder_level", "label": "Alert Level", "kind": "num",
+                     "nullable": True, "help": "Leave blank for no alert level."}],
+            label=lambda r: str(r["name"]))
+        st.caption("Opening/Purchased/Used/Damaged/In Stock are totals from saved batches and entries. "
+                   "Correct the individual Purchase, Batch, Production, Damage or Physical Count entry when "
+                   "one of those totals is wrong. Delete only works for a material that has never been used.")
 
 # ===================================================================== BATCHES
 elif section == "Batches":
@@ -167,6 +185,7 @@ elif section == "Batches":
         h = batches.copy()
         h["material"] = h["raw_material_id"].map(rname)
         h["value"] = h["qty_remaining"] * h["unit_cost"]
+        h["used_or_missing"] = h["qty_in"] - h["qty_remaining"]
         h = h.sort_values(["material", "batch_date", "id"])
 
         k1, k2, k3 = st.columns(3)
@@ -191,14 +210,33 @@ elif section == "Batches":
                     except Exception as ex:
                         st.error("Could not save: " + str(ex))
 
+        def save_batch(payload, rec):
+            db.update_raw_batch(rec["id"], payload["raw_material_id"], payload["batch_date"],
+                                payload["source"], payload["ref"], payload["qty_in"],
+                                payload["unit_cost"], payload["qty_remaining"])
+
         ui.entity_table(
             "batch", h,
-            [("Material", "material", None), ("Date", "batch_date", None), ("Source", "source", None),
-             ("Reference", "ref", None), ("Qty In", "qty_in", 0), ("Unit Cost", "unit_cost", 2),
+            [("Batch", "id", 0), ("Material", "material", None), ("Date", "batch_date", None),
+             ("Source", "source", None), ("Reference", "ref", None), ("Qty In", "qty_in", 0),
+             ("Unit Cost", "unit_cost", 2), ("Used / Missing", "used_or_missing", 0),
              ("Remaining", "qty_remaining", 0), ("Remaining Value", "value", 0)],
+            fields=[{"col": "raw_material_id", "label": "Raw Material", "kind": "select",
+                     "options": {int(k): v for k, v in rname.items()}, "required": True},
+                    {"col": "batch_date", "label": "Date", "kind": "date", "required": True},
+                    {"col": "source", "label": "Source", "required": True},
+                    {"col": "ref", "label": "Reference"},
+                    {"col": "qty_in", "label": "Quantity In", "kind": "num"},
+                    {"col": "unit_cost", "label": "Unit Cost (PKR)", "kind": "num",
+                     "step": 0.1, "format": "%.2f"},
+                    {"col": "qty_remaining", "label": "Quantity Remaining", "kind": "num"}],
+            on_save=save_batch,
+            on_delete=lambda r: db.delete_raw_batch(int(r["id"])),
             detail=("Replace (Same Price)", replace_form),
-            label=lambda r: str(r["material"]) + "  ·  " + str(r["batch_date"]),
-            can_delete=lambda r: False)
+            label=lambda r: "Batch #" + str(int(r["id"])) + "  ·  " + str(r["material"]) + "  ·  " + str(r["batch_date"]))
+        st.caption("You can correct every entered batch detail. If this batch came from a Purchase, its date, "
+                   "material, quantity, cost and reference are corrected on the purchase line too. A batch's "
+                   "material cannot be swapped after production/damages used it, and past locked costs are not rewritten.")
 
 # ==================================================================== RECIPE
 elif section == "Recipe":
@@ -230,6 +268,21 @@ elif section == "Recipe":
         pv = rc.pivot_table(index="Material", columns="Product", values="qty_per_bundle", aggfunc="sum").fillna(0)
         pv = pv.reset_index()
         ui.table(ui.fmt(pv, [c for c in pv.columns if c != "Material"], 0))
+        st.markdown("#### Recipe Lines")
+        ui.entity_table(
+            "recipe_line", rc.sort_values(["Product", "Material"]),
+            [("Product", "Product", None), ("Raw Material", "Material", None),
+             ("Quantity Per Bundle", "qty_per_bundle", 2)],
+            table="recipe",
+            fields=[{"col": "product_id", "label": "Product", "kind": "select",
+                     "options": {int(k): v for k, v in pname.items()}, "required": True},
+                    {"col": "raw_material_id", "label": "Raw Material", "kind": "select",
+                     "options": {int(k): v for k, v in rname.items()}, "required": True},
+                    {"col": "qty_per_bundle", "label": "Quantity Per Bundle", "kind": "num",
+                     "step": 0.1, "format": "%.3f"}],
+            label=lambda r: str(r["Product"]) + "  ·  " + str(r["Material"]))
+        st.caption("Recipe corrections affect future production and today's estimated product cost. "
+                   "Costs already locked into old production runs and sales stay as they were.")
 
 # ================================================================= PRODUCTION
 elif section == "Production":
@@ -301,6 +354,7 @@ elif section == "Production":
     else:
         h = prd.copy()
         h["product"] = h["product_id"].map(pname)
+        h["unit_cost"] = h["total_cost"] / h["bundles"].replace(0, pd.NA)
         h["_sort_date"] = pd.to_datetime(h["production_date"], errors="coerce")
         h = h.sort_values(["_sort_date", "id"], ascending=[False, False]).drop(columns="_sort_date").reset_index(drop=True)
 
@@ -319,19 +373,29 @@ elif section == "Production":
             if left is not None:
                 st.caption("Bundles from this run still unsold / undamaged: " + ui.money(left))
 
+        def save_production(payload, rec):
+            db.update_production(rec["id"], payload["production_date"], payload["batch_ref"],
+                                 payload["product_id"], payload["bundles"], payload["notes"])
+
         ui.entity_table(
             "prd", h,
             [("Date", "production_date", None), ("Batch", "batch_ref", None), ("Product", "product", None),
-             ("Bundles", "bundles", 0), ("Cost", "total_cost", 2), ("Notes", "notes", None)],
-            table="production",
-            fields=[{"col": "batch_ref", "label": "Batch / Reference"},
+             ("Bundles", "bundles", 0), ("Remaining", "qty_remaining", 0),
+             ("Cost / Bundle", "unit_cost", 2), ("Total Cost", "total_cost", 2), ("Notes", "notes", None)],
+            fields=[{"col": "production_date", "label": "Date", "kind": "date", "required": True},
+                    {"col": "product_id", "label": "Product", "kind": "select",
+                     "options": {int(k): v for k, v in pname.items()}, "required": True},
+                    {"col": "bundles", "label": "Bundles Produced", "kind": "num"},
+                    {"col": "batch_ref", "label": "Batch / Reference"},
                     {"col": "notes", "label": "Notes"}],
+            on_save=save_production,
+            on_delete=lambda r: db.delete_production(int(r["id"])),
             detail=("Raw Materials Used", show_prod_usage),
-            label=lambda r: str(r["production_date"]) + "  ·  " + str(r["product"]) + "  ·  " + ui.money(r["bundles"]),
-            can_delete=lambda r: False)
-        st.caption("Date, product and bundles can't be changed here, since the raw materials have already been "
-                  "taken from specific batches, and sales now draw finished stock from this exact run. "
-                  "If something was entered by mistake, let me know and we'll fix it directly.")
+            label=lambda r: str(r["production_date"]) + "  ·  " + str(r["product"]) + "  ·  " + ui.money(r["bundles"]))
+        st.caption("Date, batch reference and notes can always be corrected. While every bundle from a run is "
+                   "still in stock, product/bundles can also be corrected: the old raw materials go back to "
+                   "their exact batches and are taken again for the corrected run, so Total Cost recalculates. "
+                   "If bundles were already sold/damaged/counted out, correct those dependent entries first.")
 
 # =================================================================== DAMAGES
 else:
@@ -416,11 +480,49 @@ else:
         rm_dam = h[h["damage_type"] == "Raw Material"].copy()
         fg_dam = h[h["damage_type"] == "Finished Goods"].copy()
 
+        damage_fields = [
+            {"col": "damage_date", "label": "Date", "kind": "date", "required": True},
+            {"col": "damage_type", "label": "What Was Damaged?", "kind": "choice",
+             "options": ["Raw Material", "Finished Goods"], "required": True},
+            {"col": "raw_material_id", "label": "Raw Material (For Raw Material Damage)",
+             "kind": "select", "options": {int(k): v for k, v in rname.items()}},
+            {"col": "product_id", "label": "Product (For Finished Goods Damage)",
+             "kind": "select", "options": {int(k): v for k, v in pname.items()}},
+            {"col": "qty", "label": "Quantity", "kind": "num"},
+            {"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
+            {"col": "notes", "label": "Notes"},
+        ]
+
+        def check_damage(payload, rec):
+            if payload["qty"] <= 0:
+                return "Quantity must be more than zero. Use Delete if the whole damage was a mistake."
+            if payload["damage_type"] == "Raw Material" and not payload.get("raw_material_id"):
+                return "Choose the raw material."
+            if payload["damage_type"] == "Finished Goods" and not payload.get("product_id"):
+                return "Choose the product."
+            return None
+
+        def save_damage(payload, rec):
+            db.update_damage(rec["id"], payload["damage_date"], payload["damage_type"],
+                             payload.get("raw_material_id"), payload.get("product_id"),
+                             payload["qty"], payload.get("reason"), payload.get("notes"))
+
         st.markdown("**Raw Material Damages**")
         if rm_dam.empty:
             st.info("No raw material damages recorded yet.")
         else:
             def show_rm_batch(r):
+                rows = (damage_usage[damage_usage["damage_id"] == r["id"]]
+                        if not damage_usage.empty and "damage_id" in damage_usage.columns else pd.DataFrame())
+                if not rows.empty:
+                    st.markdown("**Batch(es) Used**")
+                    for _, u in rows.iterrows():
+                        b = batches[batches["id"] == u["batch_id"]]
+                        when = str(b.iloc[0]["batch_date"]) if not b.empty else "batch not found"
+                        st.caption(ui.money(u["qty_used"]) + " taken from Batch #" + str(int(u["batch_id"])) +
+                                   " dated " + when + "  ·  PKR " + ui.money(u["unit_cost"], 2) +
+                                   " per unit  ·  Loss PKR " + ui.money(float(u["qty_used"]) * float(u["unit_cost"]), 2))
+                    return
                 if pd.isna(r.get("batch_id")):
                     st.caption("No batch recorded for this entry.")
                     return
@@ -435,25 +537,43 @@ else:
             ui.entity_table(
                 "dam_rm", rm_dam,
                 [("Date", "damage_date", None), ("Item", "item", None), ("Quantity", "qty", 0),
-                 ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
-                table="damages",
-                fields=[{"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
-                        {"col": "notes", "label": "Notes"}],
-                detail=("Which Batch Was Used", show_rm_batch),
-                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]),
-                can_delete=lambda r: False)
-            st.caption("Quantity and date can't be changed here, since the loss has already been taken from a "
-                      "specific raw material batch. If this was entered by mistake, let me know and we'll fix it directly.")
+                 ("Reason", "reason", None), ("Unit Cost", "unit_cost_at_time", 2),
+                 ("Loss (PKR)", "loss", 0), ("Notes", "notes", None)],
+                fields=damage_fields,
+                validate=check_damage,
+                on_save=save_damage,
+                on_delete=lambda r: db.delete_damage(int(r["id"])),
+                detail=("Which Batch(es) Were Used", show_rm_batch),
+                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]))
+            st.caption("Every entered detail can be corrected. If type/item/quantity changes, the old quantity "
+                       "goes back to its exact batch(es), the corrected damage is taken oldest-first again, "
+                       "and Unit Cost/Loss recalculate automatically. Delete also returns the stock.")
 
         st.markdown("**Finished Goods Damages**")
         if fg_dam.empty:
             st.info("No finished goods damages recorded yet.")
         else:
             def show_fg_batch(r):
+                p = db.get("production", order="id")
+                rows = (damage_usage[damage_usage["damage_id"] == r["id"]]
+                        if not damage_usage.empty and "damage_id" in damage_usage.columns else pd.DataFrame())
+                if not rows.empty:
+                    st.markdown("**Production Batch(es) Used**")
+                    for _, u in rows.iterrows():
+                        b = p[p["id"] == u["production_id"]]
+                        if b.empty:
+                            when, ref = "batch not found", "—"
+                        else:
+                            bb = b.iloc[0]
+                            when, ref = str(bb["production_date"]), str(bb["batch_ref"] or "—")
+                        st.caption(ui.money(u["qty_used"]) + " taken from Production #" +
+                                   str(int(u["production_id"])) + " dated " + when + "  ·  Batch Ref: " + ref +
+                                   "  ·  PKR " + ui.money(u["unit_cost"], 2) + " per bundle  ·  Loss PKR " +
+                                   ui.money(float(u["qty_used"]) * float(u["unit_cost"]), 2))
+                    return
                 if pd.isna(r.get("fg_batch_id")):
                     st.caption("No batch recorded for this entry.")
                     return
-                p = db.get("production", order="id")
                 b = p[p["id"] == r["fg_batch_id"]]
                 if b.empty:
                     st.caption("Batch not found (it may have been removed).")
@@ -467,12 +587,14 @@ else:
             ui.entity_table(
                 "dam_fg", fg_dam,
                 [("Date", "damage_date", None), ("Item", "item", None), ("Quantity", "qty", 0),
-                 ("Reason", "reason", None), ("Loss (PKR)", "loss", 0)],
-                table="damages",
-                fields=[{"col": "reason", "label": "Reason", "kind": "choice", "options": REASONS},
-                        {"col": "notes", "label": "Notes"}],
-                detail=("Which Batch Was Used", show_fg_batch),
-                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]),
-                can_delete=lambda r: False)
-            st.caption("Quantity and date can't be changed here, since the loss has already been taken from a "
-                      "specific finished-goods batch. If this was entered by mistake, let me know and we'll fix it directly.")
+                 ("Reason", "reason", None), ("Unit Cost", "unit_cost_at_time", 2),
+                 ("Loss (PKR)", "loss", 0), ("Notes", "notes", None)],
+                fields=damage_fields,
+                validate=check_damage,
+                on_save=save_damage,
+                on_delete=lambda r: db.delete_damage(int(r["id"])),
+                detail=("Which Batch(es) Were Used", show_fg_batch),
+                label=lambda r: str(r["damage_date"]) + "  ·  " + str(r["item"]) + "  ·  " + ui.money(r["qty"]))
+            st.caption("Every entered detail can be corrected. If type/item/quantity changes, the old quantity "
+                       "goes back to its exact production batch(es), the corrected damage is taken oldest-first "
+                       "again, and Unit Cost/Loss recalculate automatically. Delete also returns the stock.")

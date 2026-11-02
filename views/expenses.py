@@ -63,16 +63,36 @@ def history(df, key, draw):
         st.info("Nothing recorded yet.")
         return
     h = df.sort_values(["expense_date", "id"], ascending=False)
-    fields = [{"col": "expense_date", "label": "Date", "kind": "date"},
+    fields = [{"col": "entry_no", "label": "Entry No.", "required": True},
+              {"col": "expense_date", "label": "Date", "kind": "date", "required": True},
+              {"col": "type", "label": "Kind", "kind": "choice",
+               "options": ["OPERATING", "OWNER DRAW"], "required": True,
+               "help": "OPERATING means a plant expense. OWNER DRAW means personal withdrawal."},
+              {"col": "category", "label": "Category", "required": True},
               {"col": "amount", "label": "Amount (PKR)", "kind": "num", "step": 100.0},
               {"col": "notes", "label": "Notes"}]
-    if not draw:
-        fields.insert(1, {"col": "category", "label": "Category", "required": True})
+
+    def prepare_expense(payload, rec):
+        if payload["type"] == "OWNER DRAW":
+            payload["category"] = "Profit Deducted"
+        elif str(payload.get("category") or "").strip().lower() == "profit deducted":
+            raise ValueError("Choose a real plant-expense category, or change Kind to OWNER DRAW.")
+        return payload
+
+    def check_expense(payload, rec):
+        if payload["amount"] <= 0:
+            return "Amount must be more than zero. Use Delete if the whole entry was a mistake."
+        if not exp.empty:
+            others = exp[(exp["id"] != rec["id"]) & (exp["entry_no"] == payload["entry_no"])]
+            if not others.empty:
+                return "Entry No. " + payload["entry_no"] + " is already used."
+        return None
+
     ui.entity_table(
         key, h,
         [("Entry", "entry_no", None), ("Date", "expense_date", None), ("Category", "category", None),
          ("Amount", "amount", 0), ("Notes", "notes", None)],
-        table="expenses", fields=fields,
+        table="expenses", fields=fields, prepare=prepare_expense, validate=check_expense,
         label=lambda r: str(r["expense_date"]) + "  ·  " + str(r["category"]) + "  ·  PKR " + ui.money(r["amount"]))
 
 

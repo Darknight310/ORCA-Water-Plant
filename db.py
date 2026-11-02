@@ -12,7 +12,8 @@ EXPORT_SHEETS = ["customers", "products", "raw_materials", "recipe", "invoices",
                  "v_invoice_summary", "v_raw_stock", "v_product_stock", "v_pnl",
                  "v_product_cost", "v_sale_order_summary"]
 OPTIONAL_SHEETS = ["suppliers", "sale_orders", "sale_order_lines", "raw_material_batches",
-                   "production_batch_usage", "sale_batch_usage", "supplier_payments"]
+                   "production_batch_usage", "sale_batch_usage", "damage_batch_usage",
+                   "supplier_payments"]
 
 
 def _supabase_key():
@@ -77,6 +78,81 @@ def delete_ids(table, ids):
     if ids:
         _client().table(table).delete().in_("id", [int(i) for i in ids]).execute()
         st.cache_data.clear()
+
+
+def _one(table, id_):
+    """Fetch one fresh row by ID (not the 15-second cached whole-table read)."""
+    rows = _client().table(table).select("*").eq("id", int(id_)).limit(1).execute().data
+    return rows[0] if rows else None
+
+
+def _num(v, default=0.0):
+    try:
+        if v is None or pd.isna(v):
+            return float(default)
+        return float(v)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _close(a, b, tol=1e-9):
+    return abs(_num(a) - _num(b)) <= tol
+
+
+def _records(rows):
+    if rows is None:
+        return []
+    if isinstance(rows, pd.DataFrame):
+        return rows.to_dict("records")
+    return list(rows)
+
+
+def _adjust_raw_batch_remaining(batch_id, delta):
+    row = _one("raw_material_batches", batch_id)
+    if not row:
+        raise ValueError("A raw-material batch linked to this entry could not be found.")
+    new_remaining = _num(row.get("qty_remaining")) + float(delta)
+    if new_remaining < -1e-9:
+        raise ValueError("That correction would make a raw-material batch go below zero.")
+    update("raw_material_batches", batch_id, {"qty_remaining": max(new_remaining, 0.0)})
+    return max(new_remaining, 0.0)
+
+
+def _adjust_fg_batch_remaining(production_id, delta):
+    row = _one("production", production_id)
+    if not row:
+        raise ValueError("A production batch linked to this entry could not be found.")
+    new_remaining = _num(row.get("qty_remaining")) + float(delta)
+    if new_remaining < -1e-9:
+        raise ValueError("That correction would make a finished-goods batch go below zero.")
+    update("production", production_id, {"qty_remaining": max(new_remaining, 0.0)})
+    return max(new_remaining, 0.0)
+
+
+def _restore_raw_usage(rows):
+    for r in _records(rows):
+        if r.get("batch_id") is not None and not pd.isna(r.get("batch_id")):
+            _adjust_raw_batch_remaining(int(r["batch_id"]), _num(r.get("qty_used")))
+
+
+def _take_exact_raw_usage(rows):
+    for r in _records(rows):
+        if r.get("batch_id") is not None and not pd.isna(r.get("batch_id")):
+            _adjust_raw_batch_remaining(int(r["batch_id"]), -_num(r.get("qty_used")))
+
+
+def _restore_fg_usage(rows):
+    for r in _records(rows):
+        pid = r.get("production_id")
+        if pid is not None and not pd.isna(pid):
+            _adjust_fg_batch_remaining(int(pid), _num(r.get("qty_used")))
+
+
+def _take_exact_fg_usage(rows):
+    for r in _records(rows):
+        pid = r.get("production_id")
+        if pid is not None and not pd.isna(pid):
+            _adjust_fg_batch_remaining(int(pid), -_num(r.get("qty_used")))
 
 
 @st.cache_data(ttl=60, show_spinner=False)
@@ -237,6 +313,96 @@ def replace_batch(batch_id, qty_add):
         "qty_remaining": float(row["qty_remaining"]) + float(qty_add)})
 
 
+def _purchase_for_batch(batch_id):
+    purchases = get("purchases", order="id")
+    if purchases.empty or "batch_id" not in purchases.columns:
+        return None
+    mine = purchases[purchases["batch_id"] == int(batch_id)]
+    return mine.iloc[0].to_dict() if not mine.empty else None
+
+
+def update_raw_batch(batch_id, raw_material_id, batch_date, source, ref, qty_in, unit_cost, qty_remaining):
+    """Correct one raw-material batch.
+
+    If the batch came from a Purchase, the matching purchase line is kept in
+    sync for date/material/quantity/cost/reference. The corrected quantity in
+    minus remaining can never be less than what production/damage records say
+    already came out of this batch.
+    """
+    batch_id = int(batch_id)
+    raw_material_id = int(raw_material_id)
+    qty_in = float(qty_in)
+    unit_cost = float(unit_cost)
+    qty_remaining = float(qty_remaining)
+    if qty_in < 0 or qty_remaining < 0 or unit_cost < 0:
+        raise ValueError("Batch quantities and cost cannot be negative.")
+    if qty_remaining > qty_in + 1e-9:
+        raise ValueError("Quantity Remaining cannot be more than Quantity In.")
+    old = _one("raw_material_batches", batch_id)
+    if not old:
+        raise ValueError("That batch could not be found.")
+    recorded = _raw_batch_recorded_usage(batch_id)
+    if qty_in - qty_remaining + 1e-9 < recorded:
+        raise ValueError("Those quantities would say only %.10g came out of this batch, but "
+                         "production/damage records already used %.10g. Correct those entries first."
+                         % (max(qty_in - qty_remaining, 0.0), recorded))
+    if int(_num(old.get("raw_material_id"))) != raw_material_id and recorded > 1e-9:
+        raise ValueError("The material cannot be changed after this batch has been used. "
+                         "Correct the production/damage entries that used it first.")
+
+    payload = {
+        "raw_material_id": raw_material_id, "batch_date": batch_date,
+        "source": (source or "").strip() or "Other", "ref": (ref or "").strip() or None,
+        "qty_in": qty_in, "unit_cost": unit_cost, "qty_remaining": qty_remaining,
+    }
+    purchase = _purchase_for_batch(batch_id)
+    purchase_payload = None
+    if purchase:
+        stock_fields_changed = (
+            int(_num(old.get("raw_material_id"))) != raw_material_id
+            or str(old.get("batch_date")) != str(batch_date)
+            or (old.get("ref") or None) != payload["ref"]
+            or not _close(old.get("qty_in"), qty_in)
+            or not _close(old.get("unit_cost"), unit_cost)
+        )
+        if stock_fields_changed:
+            old_total = _num(purchase.get("qty")) * _num(purchase.get("unit_cost"))
+            paid = _num(purchase.get("paid_amount"), old_total)
+            if paid > qty_in * unit_cost + 0.01:
+                raise ValueError("This batch came from a purchase whose Paid Amount is now higher "
+                                 "than the corrected purchase total. Edit that purchase's payment "
+                                 "amount in Suppliers & Purchases → Purchases first.")
+            purchase_payload = {
+                "purchase_date": batch_date, "raw_material_id": raw_material_id,
+                "qty": qty_in, "unit_cost": unit_cost, "ref": payload["ref"],
+            }
+    old_payload = {k: old.get(k) for k in payload}
+    update("raw_material_batches", batch_id, payload)
+    if purchase_payload:
+        try:
+            update("purchases", int(purchase["id"]), purchase_payload)
+        except Exception:
+            update("raw_material_batches", batch_id, old_payload)
+            raise
+
+
+def delete_raw_batch(batch_id):
+    """Delete a completely unused non-purchase batch."""
+    batch_id = int(batch_id)
+    old = _one("raw_material_batches", batch_id)
+    if not old:
+        raise ValueError("That batch could not be found.")
+    if _purchase_for_batch(batch_id):
+        raise ValueError("This batch belongs to a purchase. Delete it from Suppliers & Purchases "
+                         "→ Purchases so the purchase line and its batch are removed together.")
+    recorded = _raw_batch_recorded_usage(batch_id)
+    consumed = _num(old.get("qty_in")) - _num(old.get("qty_remaining"))
+    if recorded > 1e-9 or consumed > 1e-9:
+        raise ValueError("This batch cannot be deleted because some of it has already been used "
+                         "or counted out. Correct its quantities instead.")
+    delete("raw_material_batches", batch_id)
+
+
 def record_purchase(purchase_date, supplier, raw_material_id, qty, unit_cost, ref, notes,
                      paid_amount=None, paid_from_sales=0.0, paid_from_profit=0.0):
     """Records a purchase AND creates its own batch, which gets used oldest-first later.
@@ -260,6 +426,135 @@ def record_purchase(purchase_date, supplier, raw_material_id, qty, unit_cost, re
         "qty": qty, "unit_cost": unit_cost, "ref": ref, "notes": notes, "batch_id": bid,
         "paid_amount": float(paid_amount), "paid_from_sales": float(paid_from_sales),
         "paid_from_profit": float(paid_from_profit)})
+
+
+def _raw_batch_recorded_usage(batch_id):
+    """Quantity from one raw batch that production/damage records say was used."""
+    batch_id = int(batch_id)
+    total = 0.0
+    usage = get("production_batch_usage", order="id")
+    if not usage.empty and "batch_id" in usage.columns:
+        total += _num(usage.loc[usage["batch_id"] == batch_id, "qty_used"].sum())
+    damage_usage_ids = set()
+    try:
+        du = get("damage_batch_usage", order="id")
+    except Exception:
+        du = pd.DataFrame()
+    if not du.empty and "batch_id" in du.columns:
+        mine = du[du["batch_id"] == batch_id]
+        total += _num(mine["qty_used"].sum())
+        damage_usage_ids = set(du["damage_id"].dropna().astype(int).tolist())
+    damages = get("damages", order="id")
+    if not damages.empty and "batch_id" in damages.columns:
+        legacy = damages[(damages["batch_id"] == batch_id) & (~damages["id"].isin(damage_usage_ids))]
+        if not legacy.empty:
+            # Older damage rows only remembered their first batch. This is only a
+            # safety guard for those rows; new damages use damage_batch_usage.
+            total += _num(legacy["qty"].sum())
+    return total
+
+
+def update_purchase(purchase_id, purchase_date, supplier, raw_material_id, qty, unit_cost,
+                    ref, notes, paid_amount, paid_from_sales, paid_from_profit):
+    """Correct a purchase and its linked stock batch together.
+
+    The amount already taken from the batch stays taken. This means the new
+    quantity can be lowered only down to the amount production/damages have
+    already used; the unused remainder is adjusted by the same difference.
+    Costs already locked into past production/sales are not rewritten, but the
+    remaining batch and all future use get the corrected purchase cost.
+    """
+    purchase_id = int(purchase_id)
+    raw_material_id = int(raw_material_id)
+    qty = float(qty)
+    unit_cost = float(unit_cost)
+    paid_amount = float(paid_amount)
+    paid_from_sales = float(paid_from_sales)
+    paid_from_profit = float(paid_from_profit)
+    if qty <= 0:
+        raise ValueError("Purchase quantity must be more than zero. Use Delete if the whole purchase was a mistake.")
+    if unit_cost < 0 or paid_amount < 0 or paid_from_sales < 0 or paid_from_profit < 0:
+        raise ValueError("Costs and paid amounts cannot be negative.")
+    total = qty * unit_cost
+    if paid_amount > total + 0.01:
+        raise ValueError("Paid amount cannot be more than the purchase total (PKR %.2f)." % total)
+    if abs((paid_from_sales + paid_from_profit) - paid_amount) > 0.01:
+        raise ValueError("“Paid From Sales” plus “Paid From Profit / Pocket” must equal the Paid Amount.")
+
+    old = _one("purchases", purchase_id)
+    if not old:
+        raise ValueError("That purchase could not be found.")
+    payload = {
+        "purchase_date": purchase_date, "supplier": (supplier or "").strip() or None,
+        "raw_material_id": raw_material_id, "qty": qty, "unit_cost": unit_cost,
+        "ref": (ref or "").strip() or None, "notes": (notes or "").strip() or None,
+        "paid_amount": paid_amount, "paid_from_sales": paid_from_sales,
+        "paid_from_profit": paid_from_profit,
+    }
+    batch_id = old.get("batch_id")
+    stock_changed = (
+        str(old.get("purchase_date")) != str(purchase_date)
+        or int(_num(old.get("raw_material_id"))) != raw_material_id
+        or not _close(old.get("qty"), qty)
+        or not _close(old.get("unit_cost"), unit_cost)
+        or (old.get("ref") or None) != payload["ref"]
+    )
+    if batch_id is None or pd.isna(batch_id):
+        if stock_changed:
+            raise ValueError("This older purchase has no linked stock batch, so its date, material, "
+                             "quantity, cost or reference cannot be corrected safely from here.")
+        update("purchases", purchase_id, payload)
+        return
+
+    batch = _one("raw_material_batches", int(batch_id))
+    if not batch:
+        raise ValueError("The stock batch linked to this purchase could not be found.")
+    consumed = _num(batch.get("qty_in")) - _num(batch.get("qty_remaining"))
+    recorded = _raw_batch_recorded_usage(int(batch_id))
+    if qty + 1e-9 < recorded:
+        raise ValueError("Quantity cannot be below %.10g, because production/damages have already used "
+                         "that much from this batch. Correct those entries first." % recorded)
+    new_remaining = qty - consumed
+    if new_remaining < -1e-9:
+        raise ValueError("Quantity cannot be that low: %.10g from this batch is already used or missing "
+                         "from stock. Correct the entries that used it first." % max(consumed, 0.0))
+    if int(_num(batch.get("raw_material_id"))) != raw_material_id and (consumed > 1e-9 or recorded > 1e-9):
+        raise ValueError("The raw material cannot be changed after this batch has been used. "
+                         "Correct or delete the production/damage that used it first.")
+
+    old_batch_payload = {k: batch.get(k) for k in
+                         ("raw_material_id", "batch_date", "ref", "qty_in", "unit_cost", "qty_remaining")}
+    update("raw_material_batches", int(batch_id), {
+        "raw_material_id": raw_material_id, "batch_date": purchase_date, "ref": payload["ref"],
+        "qty_in": qty, "unit_cost": unit_cost, "qty_remaining": max(new_remaining, 0.0)})
+    try:
+        update("purchases", purchase_id, payload)
+    except Exception:
+        update("raw_material_batches", int(batch_id), old_batch_payload)
+        raise
+
+
+def delete_purchase(purchase_id):
+    """Delete a purchase only while its whole batch is still unused."""
+    purchase_id = int(purchase_id)
+    old = _one("purchases", purchase_id)
+    if not old:
+        raise ValueError("That purchase could not be found.")
+    batch_id = old.get("batch_id")
+    if batch_id is not None and not pd.isna(batch_id):
+        batch = _one("raw_material_batches", int(batch_id))
+        if batch:
+            recorded = _raw_batch_recorded_usage(int(batch_id))
+            consumed = _num(batch.get("qty_in")) - _num(batch.get("qty_remaining"))
+            if recorded > 1e-9 or consumed > 1e-9:
+                raise ValueError("This purchase cannot be deleted because some of its batch has already "
+                                 "been used or counted out. Correct the quantity instead, or first fix "
+                                 "the production/damage entries that used it.")
+        delete("purchases", purchase_id)
+        if batch:
+            delete("raw_material_batches", int(batch_id))
+    else:
+        delete("purchases", purchase_id)
 
 
 def get_payables():
@@ -337,6 +632,232 @@ def record_production(production_date, batch_ref, product_id, bundles, notes, re
     return pid, total_cost
 
 
+def _production_usage_rows(production_id):
+    usage = get("production_batch_usage", order="id")
+    if usage.empty:
+        return []
+    return usage[usage["production_id"] == int(production_id)].to_dict("records")
+
+
+def _production_recorded_outflow(production_id):
+    """Bundles from one production run that sale/damage records say left stock."""
+    production_id = int(production_id)
+    total = 0.0
+    sales = get("sale_batch_usage", order="id")
+    if not sales.empty and "production_id" in sales.columns:
+        total += _num(sales.loc[sales["production_id"] == production_id, "qty_used"].sum())
+    damage_usage_ids = set()
+    try:
+        du = get("damage_batch_usage", order="id")
+    except Exception:
+        du = pd.DataFrame()
+    if not du.empty and "production_id" in du.columns:
+        mine = du[du["production_id"] == production_id]
+        total += _num(mine["qty_used"].sum())
+        damage_usage_ids = set(du["damage_id"].dropna().astype(int).tolist())
+    damages = get("damages", order="id")
+    if not damages.empty and "fg_batch_id" in damages.columns:
+        legacy = damages[(damages["fg_batch_id"] == production_id)
+                         & (~damages["id"].isin(damage_usage_ids))]
+        if not legacy.empty:
+            total += _num(legacy["qty"].sum())
+    return total
+
+
+def update_production(production_id, production_date, batch_ref, product_id, bundles, notes):
+    """Correct a production run.
+
+    Date/reference/notes can always be corrected. Product or bundle quantity
+    can be corrected while the whole run is still in stock: its raw materials
+    are put back into their exact batches, then taken again for the corrected
+    run. If bundles from the run were already sold, damaged or counted out,
+    those dependent entries must be corrected first so locked sale costs stay
+    truthful.
+    """
+    production_id = int(production_id)
+    product_id = int(product_id)
+    bundles = float(bundles)
+    if bundles <= 0:
+        raise ValueError("Bundles produced must be more than zero. Use Delete if the whole run was a mistake.")
+    old = _one("production", production_id)
+    if not old:
+        raise ValueError("That production entry could not be found.")
+    base_payload = {
+        "production_date": production_date,
+        "batch_ref": (batch_ref or "").strip() or None,
+        "product_id": product_id,
+        "bundles": bundles,
+        "notes": (notes or "").strip() or None,
+    }
+    if int(_num(old.get("product_id"))) == product_id and _close(old.get("bundles"), bundles):
+        update("production", production_id, base_payload)
+        return
+
+    outflow = _production_recorded_outflow(production_id)
+    unexplained = _num(old.get("bundles")) - _num(old.get("qty_remaining")) - outflow
+    if outflow > 1e-9 or unexplained > 1e-9:
+        bits = []
+        if outflow > 1e-9:
+            bits.append("%.10g bundle(s) were already sold or damaged" % outflow)
+        if unexplained > 1e-9:
+            bits.append("%.10g bundle(s) were already counted out" % unexplained)
+        raise ValueError("Product/bundles cannot be changed for this run because " + " and ".join(bits)
+                         + ". Date, batch reference and notes can still be edited. To change the "
+                         "product or bundles, first correct the invoice/damage/physical-count entries "
+                         "that took stock from this run.")
+
+    usage = _production_usage_rows(production_id)
+    if not usage:
+        # Opening / physical-count finished batches have a manually entered cost
+        # and no raw-material usage. Preserve that cost per bundle.
+        old_bundles = _num(old.get("bundles")) or 1.0
+        unit_cost = _num(old.get("total_cost")) / old_bundles
+        payload = {**base_payload, "total_cost": unit_cost * bundles, "qty_remaining": bundles}
+        update("production", production_id, payload)
+        return
+
+    required = {}
+    if int(_num(old.get("product_id"))) == product_id:
+        # Same product: scale the actual raw materials this run used, rather
+        # than assuming today's recipe is the recipe that was used back then.
+        scale = bundles / (_num(old.get("bundles")) or 1.0)
+        for u in usage:
+            mid = int(u["raw_material_id"])
+            required[mid] = required.get(mid, 0.0) + _num(u.get("qty_used")) * scale
+    else:
+        recipe = get("recipe", order="id")
+        rows = recipe[recipe["product_id"] == product_id] if not recipe.empty else recipe
+        if rows is None or rows.empty:
+            raise ValueError("The corrected product has no recipe yet. Add its recipe first.")
+        for _, rc in rows.iterrows():
+            qty_needed = _num(rc.get("qty_per_bundle")) * bundles
+            if qty_needed > 0:
+                required[int(rc["raw_material_id"])] = qty_needed
+
+    old_by_material = {}
+    for u in usage:
+        mid = int(u["raw_material_id"])
+        old_by_material[mid] = old_by_material.get(mid, 0.0) + _num(u.get("qty_used"))
+    for mid, qty_needed in required.items():
+        batches = get_batches(mid, only_available=False)
+        available = _num(batches["qty_remaining"].sum()) if not batches.empty else 0.0
+        available += old_by_material.get(mid, 0.0)
+        if qty_needed > available + 1e-9:
+            raise ValueError("Not enough recorded raw-material stock for the corrected production "
+                             "(material ID %s is short by %.10g after putting this run's old "
+                             "materials back). Nothing was changed." % (mid, qty_needed - available))
+
+    old_snapshot = {k: old.get(k) for k in
+                    ("production_date", "batch_ref", "product_id", "bundles", "notes",
+                     "total_cost", "qty_remaining")}
+    new_usage = []
+    inserted_ids = []
+    old_restored = False
+    old_usage_deleted = False
+    try:
+        _restore_raw_usage(usage)
+        old_restored = True
+        delete_ids("production_batch_usage", [u["id"] for u in usage])
+        old_usage_deleted = True
+        total_cost = 0.0
+        for mid, qty_needed in required.items():
+            plan = consume_fifo(mid, qty_needed)
+            for p in plan:
+                total_cost += p["qty"] * p["unit_cost"]
+                new_usage.append({"production_id": production_id, "raw_material_id": mid,
+                                  "batch_id": p["batch_id"], "qty_used": p["qty"],
+                                  "unit_cost": p["unit_cost"]})
+        if new_usage:
+            inserted = insert("production_batch_usage", new_usage)
+            inserted_ids = [r["id"] for r in inserted]
+        update("production", production_id,
+               {**base_payload, "total_cost": total_cost, "qty_remaining": bundles})
+    except Exception:
+        # Best-effort rollback in this single-user app if a later write fails.
+        if inserted_ids:
+            delete_ids("production_batch_usage", inserted_ids)
+        if new_usage:
+            _restore_raw_usage([{**u, "qty_used": u["qty_used"]} for u in new_usage])
+        if old_restored:
+            _take_exact_raw_usage(usage)
+        if old_usage_deleted:
+            insert("production_batch_usage", [
+                {"production_id": production_id, "raw_material_id": int(u["raw_material_id"]),
+                 "batch_id": int(u["batch_id"]), "qty_used": _num(u.get("qty_used")),
+                 "unit_cost": _num(u.get("unit_cost"))} for u in usage])
+        update("production", production_id, old_snapshot)
+        raise
+
+
+def delete_production(production_id):
+    """Delete an unused production run and return its raw materials to stock."""
+    production_id = int(production_id)
+    old = _one("production", production_id)
+    if not old:
+        raise ValueError("That production entry could not be found.")
+    outflow = _production_recorded_outflow(production_id)
+    unexplained = _num(old.get("bundles")) - _num(old.get("qty_remaining")) - outflow
+    if outflow > 1e-9 or unexplained > 1e-9:
+        raise ValueError("This production run cannot be deleted because some of its bundles were "
+                         "already sold, damaged or counted out. Correct those entries first.")
+    usage = _production_usage_rows(production_id)
+    _restore_raw_usage(usage)
+    try:
+        delete("production", production_id)
+    except Exception:
+        _take_exact_raw_usage(usage)
+        raise
+
+
+def _damage_usage_rows(damage_id):
+    try:
+        usage = get("damage_batch_usage", order="id")
+    except Exception:
+        return []
+    if usage.empty:
+        return []
+    return usage[usage["damage_id"] == int(damage_id)].to_dict("records")
+
+
+def _damage_usage_copy(old, usage):
+    """Clean copies of damage batch rows, safe to re-insert during rollback."""
+    rows = []
+    for u in usage:
+        row = {"damage_id": int(_num(u.get("damage_id"))),
+               "qty_used": _num(u.get("qty_used")), "unit_cost": _num(u.get("unit_cost"))}
+        if old.get("damage_type") == "Raw Material":
+            row.update({"raw_material_id": int(_num(u.get("raw_material_id"))),
+                        "batch_id": int(_num(u.get("batch_id")))})
+        else:
+            row.update({"product_id": int(_num(u.get("product_id"))),
+                        "production_id": int(_num(u.get("production_id")))})
+        rows.append(row)
+    return rows
+
+
+def _check_damage_usage_complete(old, usage):
+    total = sum(_num(u.get("qty_used")) for u in usage)
+    if not _close(total, old.get("qty")):
+        raise ValueError("This damage entry's batch record adds up to %.10g, but the damage "
+                         "quantity is %.10g. Nothing was changed; that batch record needs "
+                         "checking before the item/quantity can be edited safely."
+                         % (total, _num(old.get("qty"))))
+    return total
+
+
+def _insert_damage_usage(damage_id, damage_type, raw_material_id, product_id, plan):
+    rows = []
+    for p in plan:
+        row = {"damage_id": int(damage_id), "qty_used": float(p["qty"]),
+               "unit_cost": float(p["unit_cost"])}
+        if damage_type == "Raw Material":
+            row.update({"raw_material_id": int(raw_material_id), "batch_id": int(p["batch_id"])})
+        else:
+            row.update({"product_id": int(product_id), "production_id": int(p["production_id"])})
+        rows.append(row)
+    return insert("damage_batch_usage", rows) if rows else []
+
+
 def record_raw_damage(damage_date, raw_material_id, qty, reason, notes):
     """Raw material damage: takes the loss from the oldest batch(es), at their real cost."""
     raw_material_id = int(raw_material_id)
@@ -344,10 +865,20 @@ def record_raw_damage(damage_date, raw_material_id, qty, reason, notes):
     plan = consume_fifo(raw_material_id, qty)
     total = sum(p["qty"] * p["unit_cost"] for p in plan)
     avg_cost = total / qty if qty else 0.0
-    return insert("damages", {
-        "damage_date": damage_date, "damage_type": "Raw Material", "raw_material_id": raw_material_id,
-        "product_id": None, "qty": qty, "reason": reason, "notes": notes,
-        "unit_cost_at_time": avg_cost, "batch_id": plan[0]["batch_id"] if plan else None})
+    try:
+        rows = insert("damages", {
+            "damage_date": damage_date, "damage_type": "Raw Material", "raw_material_id": raw_material_id,
+            "product_id": None, "qty": qty, "reason": reason, "notes": notes,
+            "unit_cost_at_time": avg_cost, "batch_id": plan[0]["batch_id"] if plan else None})
+        try:
+            _insert_damage_usage(rows[0]["id"], "Raw Material", raw_material_id, None, plan)
+        except Exception:
+            delete("damages", rows[0]["id"])
+            raise
+        return rows
+    except Exception:
+        _restore_raw_usage([{"batch_id": p["batch_id"], "qty_used": p["qty"]} for p in plan])
+        raise
 
 
 # ======================================================= FINISHED GOODS BATCHES
@@ -459,10 +990,165 @@ def record_fg_damage(damage_date, product_id, qty, reason, notes):
     plan = consume_fg_fifo(product_id, qty)
     total = sum(p["qty"] * p["unit_cost"] for p in plan)
     avg_cost = total / qty if qty else 0.0
-    return insert("damages", {
-        "damage_date": damage_date, "damage_type": "Finished Goods", "raw_material_id": None,
-        "product_id": product_id, "qty": qty, "reason": reason, "notes": notes,
-        "unit_cost_at_time": avg_cost, "fg_batch_id": plan[0]["production_id"] if plan else None})
+    try:
+        rows = insert("damages", {
+            "damage_date": damage_date, "damage_type": "Finished Goods", "raw_material_id": None,
+            "product_id": product_id, "qty": qty, "reason": reason, "notes": notes,
+            "unit_cost_at_time": avg_cost, "fg_batch_id": plan[0]["production_id"] if plan else None})
+        try:
+            _insert_damage_usage(rows[0]["id"], "Finished Goods", None, product_id, plan)
+        except Exception:
+            delete("damages", rows[0]["id"])
+            raise
+        return rows
+    except Exception:
+        _restore_fg_usage([{"production_id": p["production_id"], "qty_used": p["qty"]} for p in plan])
+        raise
+
+
+def update_damage(damage_id, damage_date, damage_type, raw_material_id, product_id, qty, reason, notes):
+    """Correct a saved damage line.
+
+    Date/reason/notes are simple corrections. If type, item or quantity changes,
+    the old quantity is first put back into the exact batch(es) it came from;
+    the corrected damage is then taken oldest-first again and its loss cost is
+    recalculated from those real batches.
+    """
+    damage_id = int(damage_id)
+    qty = float(qty)
+    if qty <= 0:
+        raise ValueError("Damage quantity must be more than zero. Use Delete if the whole damage was a mistake.")
+    if damage_type == "Raw Material":
+        if raw_material_id is None:
+            raise ValueError("Choose the raw material.")
+        raw_material_id = int(raw_material_id)
+        product_id = None
+    elif damage_type == "Finished Goods":
+        if product_id is None:
+            raise ValueError("Choose the product.")
+        product_id = int(product_id)
+        raw_material_id = None
+    else:
+        raise ValueError("Choose whether this was Raw Material or Finished Goods.")
+
+    old = _one("damages", damage_id)
+    if not old:
+        raise ValueError("That damage entry could not be found.")
+    payload = {
+        "damage_date": damage_date, "damage_type": damage_type,
+        "raw_material_id": raw_material_id, "product_id": product_id,
+        "qty": qty, "reason": reason, "notes": (notes or "").strip() or None,
+    }
+    stock_changed = (
+        old.get("damage_type") != damage_type
+        or int(_num(old.get("raw_material_id"))) != int(_num(raw_material_id))
+        or int(_num(old.get("product_id"))) != int(_num(product_id))
+        or not _close(old.get("qty"), qty)
+    )
+    if not stock_changed:
+        update("damages", damage_id, payload)
+        return
+
+    usage = _damage_usage_rows(damage_id)
+    if not usage:
+        raise ValueError("This older damage entry does not remember every batch it used, so its "
+                         "date/reason/notes can be edited, but its type/item/quantity cannot be "
+                         "changed safely. New damage entries remember their exact batches.")
+
+    old_qty = _check_damage_usage_complete(old, usage)
+    if damage_type == "Raw Material":
+        batches = get_batches(raw_material_id, only_available=False)
+        available = _num(batches["qty_remaining"].sum()) if not batches.empty else 0.0
+        if old.get("damage_type") == "Raw Material" and int(_num(old.get("raw_material_id"))) == raw_material_id:
+            available += old_qty
+    else:
+        batches = get_fg_batches(product_id, only_available=False)
+        available = _num(batches["qty_remaining"].sum()) if not batches.empty else 0.0
+        if old.get("damage_type") == "Finished Goods" and int(_num(old.get("product_id"))) == product_id:
+            available += old_qty
+    if qty > available + 1e-9:
+        raise ValueError("Not enough recorded stock for the corrected damage (short by %.10g after "
+                         "putting the old damage back). Nothing was changed." % (qty - available))
+
+    old_snapshot = {k: old.get(k) for k in
+                    ("damage_date", "damage_type", "raw_material_id", "product_id", "qty",
+                     "reason", "notes", "unit_cost_at_time", "batch_id", "fg_batch_id")}
+    new_usage = []
+    inserted_ids = []
+    old_restored = False
+    old_usage_deleted = False
+    try:
+        if old.get("damage_type") == "Raw Material":
+            _restore_raw_usage(usage)
+        else:
+            _restore_fg_usage(usage)
+        old_restored = True
+        delete_ids("damage_batch_usage", [u["id"] for u in usage])
+        old_usage_deleted = True
+
+        if damage_type == "Raw Material":
+            plan = consume_fifo(raw_material_id, qty)
+            new_usage = [{"damage_id": damage_id, "raw_material_id": raw_material_id,
+                          "batch_id": p["batch_id"], "qty_used": p["qty"],
+                          "unit_cost": p["unit_cost"]} for p in plan]
+            first_batch = plan[0]["batch_id"] if plan else None
+            first_fg_batch = None
+        else:
+            plan = consume_fg_fifo(product_id, qty)
+            new_usage = [{"damage_id": damage_id, "product_id": product_id,
+                          "production_id": p["production_id"], "qty_used": p["qty"],
+                          "unit_cost": p["unit_cost"]} for p in plan]
+            first_batch = None
+            first_fg_batch = plan[0]["production_id"] if plan else None
+        total = sum(p["qty"] * p["unit_cost"] for p in plan)
+        if new_usage:
+            inserted = insert("damage_batch_usage", new_usage)
+            inserted_ids = [r["id"] for r in inserted]
+        update("damages", damage_id, {**payload,
+                                      "unit_cost_at_time": total / qty if qty else 0.0,
+                                      "batch_id": first_batch, "fg_batch_id": first_fg_batch})
+    except Exception:
+        if inserted_ids:
+            delete_ids("damage_batch_usage", inserted_ids)
+        if new_usage:
+            if damage_type == "Raw Material":
+                _restore_raw_usage(new_usage)
+            else:
+                _restore_fg_usage(new_usage)
+        if old_restored:
+            if old.get("damage_type") == "Raw Material":
+                _take_exact_raw_usage(usage)
+            else:
+                _take_exact_fg_usage(usage)
+        if old_usage_deleted:
+            insert("damage_batch_usage", _damage_usage_copy(old, usage))
+        update("damages", damage_id, old_snapshot)
+        raise
+
+
+def delete_damage(damage_id):
+    """Delete a damage and put its quantity back into the exact batch(es)."""
+    damage_id = int(damage_id)
+    old = _one("damages", damage_id)
+    if not old:
+        raise ValueError("That damage entry could not be found.")
+    usage = _damage_usage_rows(damage_id)
+    if not usage:
+        raise ValueError("This older damage entry does not remember every batch it used, so it "
+                         "cannot be deleted safely from here.")
+    _check_damage_usage_complete(old, usage)
+    if old.get("damage_type") == "Raw Material":
+        _restore_raw_usage(usage)
+    else:
+        _restore_fg_usage(usage)
+    try:
+        delete("damages", damage_id)
+    except Exception:
+        if old.get("damage_type") == "Raw Material":
+            _take_exact_raw_usage(usage)
+        else:
+            _take_exact_fg_usage(usage)
+        raise
 
 
 # ====================================================== STOCK SET-UP & COUNTS

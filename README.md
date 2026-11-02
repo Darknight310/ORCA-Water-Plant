@@ -29,6 +29,16 @@ Profit & Loss / Cash-in-Hand dashboard. Data lives in Supabase (Postgres).
    batches - removed 2026-11-01; see `supabase/2026-11-01_cleanup_and_unify_NOTES.md`.)
 4. **Physical Count adjusts the batches** (visible "Physical Count Adjustment"
    batches), so all stock screens keep agreeing with your real count.
+5. **Saved lines are correctable from their own screens.** Use **Edit Full Line**
+   on a selected row. Dates and ordinary details simply update. Stock-affecting
+   corrections keep the ledgers together: a damage puts its old quantity back
+   into the exact batch(es) recorded in `damage_batch_usage`, then takes the
+   corrected quantity FIFO again; a purchase and its batch are corrected
+   together; an unused production run returns its raw materials and is rebuilt.
+   Totals and locked costs are results, so they recalculate from the corrected
+   source details instead of being typed over. If a later sale/damage/count
+   already used the stock, the app explains which dependent entry must be
+   corrected first rather than silently desyncing stock or profit.
 
 ## Secrets (Streamlit: Manage App -> Settings -> Secrets)
 ```toml

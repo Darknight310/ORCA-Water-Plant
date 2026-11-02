@@ -58,6 +58,7 @@ if section == "Suppliers":
             sper = c.text_input("Contact Person", key="s_per_" + str(n))
             sph = d.text_input("Phone", key="s_ph_" + str(n))
             sadr = st.text_input("Address / Area", key="s_adr_" + str(n))
+            snotes = st.text_input("Notes (Optional)", key="s_notes_" + str(n))
             if st.button("Add Supplier", type="primary", key="s_save_" + str(n)):
                 nm = sname.strip()
                 if not nm:
@@ -68,7 +69,8 @@ if section == "Suppliers":
                     try:
                         db.insert("suppliers", {"name": nm, "category": scat.strip() or None,
                                                 "contact_person": sper.strip() or None,
-                                                "phone": sph.strip() or None, "address": sadr.strip() or None})
+                                                "phone": sph.strip() or None, "address": sadr.strip() or None,
+                                                "notes": snotes.strip() or None})
                         st.session_state["sup_n"] = n + 1
                         st.session_state["flash"] = "Supplier " + nm + " added."
                         st.rerun()
@@ -78,17 +80,30 @@ if section == "Suppliers":
         if suppliers.empty:
             st.info("No suppliers yet.")
         else:
+            def save_supplier(payload, rec):
+                old_name = str(rec["name"])
+                db.update("suppliers", rec["id"], payload)
+                new_name = payload.get("name")
+                if new_name and new_name != old_name:
+                    # Purchases/payments remember the supplier by name, so move
+                    # that history with the corrected supplier name.
+                    db.update_where("purchases", "supplier", old_name, {"supplier": new_name})
+                    db.update_where("supplier_payments", "supplier", old_name, {"supplier": new_name})
+
             ui.entity_table(
                 "sup", sdf.sort_values("name"),
                 [("Supplier", "name", None), ("Supplies", "category", None), ("Contact", "contact_person", None),
-                 ("Phone", "phone", None), ("Address", "address", None), ("Total Purchased", "purchased", 0),
-                 ("Owed", "payable", 0), ("Last Purchase", "last_purchase", None)],
+                 ("Phone", "phone", None), ("Address", "address", None), ("Notes", "notes", None),
+                 ("Total Purchased", "purchased", 0), ("Owed", "payable", 0),
+                 ("Last Purchase", "last_purchase", None)],
                 table="suppliers",
                 fields=[{"col": "name", "label": "Supplier Name", "required": True},
                         {"col": "category", "label": "What They Supply"},
                         {"col": "contact_person", "label": "Contact Person"},
                         {"col": "phone", "label": "Phone"},
-                        {"col": "address", "label": "Address / Area"}],
+                        {"col": "address", "label": "Address / Area"},
+                        {"col": "notes", "label": "Notes"}],
+                on_save=save_supplier,
                 label=lambda r: str(r["name"]))
 
 # ================================================================== PURCHASES
@@ -174,6 +189,12 @@ elif section == "Purchases":
         h["material"] = h["raw_material_id"].map(rname)
         h["total"] = h["qty"] * h["unit_cost"]
         h["paid_amount"] = h["paid_amount"].fillna(h["total"]) if "paid_amount" in h.columns else h["total"]
+        if "paid_from_profit" not in h.columns:
+            h["paid_from_profit"] = 0.0
+        if "paid_from_sales" not in h.columns:
+            h["paid_from_sales"] = 0.0
+        h["paid_from_profit"] = h["paid_from_profit"].fillna(0.0)
+        h["paid_from_sales"] = h["paid_from_sales"].fillna(h["paid_amount"] - h["paid_from_profit"])
         h["owed"] = h["total"] - h["paid_amount"]
 
         def status_row(r):
@@ -184,21 +205,39 @@ elif section == "Purchases":
             return "Partial"
 
         h["status"] = h.apply(status_row, axis=1)
+
+        def save_purchase(payload, rec):
+            db.update_purchase(rec["id"], payload["purchase_date"], payload.get("supplier"),
+                               payload["raw_material_id"], payload["qty"], payload["unit_cost"],
+                               payload.get("ref"), payload.get("notes"), payload["paid_amount"],
+                               payload["paid_from_sales"], payload["paid_from_profit"])
+
         ui.entity_table(
             "pur", h,
             [("Date", "purchase_date", None), ("Supplier", "supplier", None), ("Raw Material", "material", None),
              ("Quantity", "qty", 0), ("Unit Cost", "unit_cost", 2), ("Total", "total", 0),
-             ("Paid", "paid_amount", 0), ("Owed", "owed", 0), ("Status", "status", None), ("Reference", "ref", None)],
-            table="purchases",
-            fields=[{"col": "supplier", "label": "Supplier"},
+             ("Paid", "paid_amount", 0), ("From Sales", "paid_from_sales", 0),
+             ("From Profit", "paid_from_profit", 0), ("Owed", "owed", 0), ("Status", "status", None),
+             ("Reference", "ref", None), ("Notes", "notes", None)],
+            fields=[{"col": "purchase_date", "label": "Date", "kind": "date", "required": True},
+                    {"col": "supplier", "label": "Supplier"},
+                    {"col": "raw_material_id", "label": "Raw Material", "kind": "select",
+                     "options": {int(k): v for k, v in rname.items()}, "required": True},
+                    {"col": "qty", "label": "Quantity", "kind": "num"},
+                    {"col": "unit_cost", "label": "Unit Cost (PKR)", "kind": "num",
+                     "step": 0.1, "format": "%.2f"},
+                    {"col": "paid_amount", "label": "Paid Amount (PKR)", "kind": "num", "step": 100.0},
+                    {"col": "paid_from_sales", "label": "Paid From Sales (PKR)", "kind": "num", "step": 10.0},
+                    {"col": "paid_from_profit", "label": "Paid From Profit / Pocket (PKR)",
+                     "kind": "num", "step": 10.0},
                     {"col": "ref", "label": "Invoice / Reference"},
                     {"col": "notes", "label": "Notes"}],
-            label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]),
-            can_delete=lambda r: False)
-        st.caption("Quantity and cost can't be changed here, since they've already become a batch that may be in "
-                  "use. If a supplier sends more at the same price, use 'Replace (Same Price)' in Stock & Production "
-                  "→ Batches. If a purchase was recorded as 'On Credit' and needs to be paid, use the Supplier "
-                  "Payments tab. If something was entered completely wrong, let me know and we'll fix it directly.")
+            on_save=save_purchase,
+            on_delete=lambda r: db.delete_purchase(int(r["id"])),
+            label=lambda r: str(r["purchase_date"]) + "  ·  " + str(r["material"]) + "  ·  " + ui.money(r["qty"]))
+        st.caption("Every entered purchase detail can be corrected. Its stock batch is corrected at the same "
+                   "time: amount already used stays used, while the unused remainder moves by the quantity "
+                   "difference. Total/Owed/Status recalculate. Delete works only while the whole batch is unused.")
 
 # ============================================================ SUPPLIER PAYMENTS
 else:
@@ -250,13 +289,42 @@ else:
     if sp.empty:
         st.info("No supplier payments recorded yet.")
     else:
+        def check_supplier_payment(payload, rec):
+            if not payload.get("supplier"):
+                return "Enter the supplier."
+            if payload["amount"] <= 0:
+                return "Enter an amount."
+            if abs((payload["paid_from_sales"] + payload["paid_from_profit"]) - payload["amount"]) > 0.01:
+                return "“Paid From Sales” plus “Paid From Profit / Pocket” must equal the Amount."
+            if (str(payload["supplier"]).strip().lower() == str(rec["supplier"]).strip().lower()
+                    and abs(payload["amount"] - float(rec["amount"])) <= 0.01):
+                return None  # Allow date/method/notes fixes on an already-saved payment.
+            if payables.empty:
+                return "That supplier has no purchases recorded."
+            key = str(payload["supplier"]).strip().lower()
+            rows = payables[payables["supplier"].astype(str).str.strip().str.lower() == key]
+            if rows.empty:
+                return "That supplier has no purchases recorded."
+            available = float(rows.iloc[0]["payable"])
+            if str(rec["supplier"]).strip().lower() == key:
+                available += float(rec["amount"])
+            if payload["amount"] > available + 0.01:
+                return "That would overpay this supplier. Amount still owed (counting this old payment back) is PKR " + ui.money(max(available, 0)) + "."
+            return None
+
         ui.entity_table(
             "sp", sp,
             [("Date", "payment_date", None), ("Supplier", "supplier", None), ("Amount", "amount", 0),
              ("From Sales", "paid_from_sales", 0), ("From Profit", "paid_from_profit", 0),
              ("Method", "method", None), ("Notes", "notes", None)],
             table="supplier_payments",
-            fields=[{"col": "amount", "label": "Amount (PKR)", "kind": "num", "step": 100.0},
+            fields=[{"col": "payment_date", "label": "Date", "kind": "date", "required": True},
+                    {"col": "supplier", "label": "Supplier", "required": True},
+                    {"col": "amount", "label": "Amount (PKR)", "kind": "num", "step": 100.0},
+                    {"col": "paid_from_sales", "label": "Paid From Sales (PKR)", "kind": "num", "step": 10.0},
+                    {"col": "paid_from_profit", "label": "Paid From Profit / Pocket (PKR)",
+                     "kind": "num", "step": 10.0},
                     {"col": "method", "label": "Method", "kind": "choice", "options": db.METHODS},
                     {"col": "notes", "label": "Notes"}],
+            validate=check_supplier_payment,
             label=lambda r: str(r["payment_date"]) + "  ·  " + str(r["supplier"]) + "  ·  PKR " + ui.money(r["amount"]))

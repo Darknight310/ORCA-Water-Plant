@@ -18,7 +18,9 @@ fg = db.get("v_product_stock", order="id")
 cash = db.cash_in_hand()
 reinv = db.reinvest()
 
-SALES, STOCK, EXPENSES, SUPPLIERS = "views/sales.py", "views/stock.py", "views/expenses.py", "views/suppliers_purchases.py"
+SALES, STOCK, EXPENSES, SUPPLIERS, REPORTS = (
+    "views/sales.py", "views/stock.py", "views/expenses.py",
+    "views/suppliers_purchases.py", "views/reports.py")
 net = p["net_sales"]
 
 
@@ -30,7 +32,6 @@ owed, open_count = 0.0, 0
 if not summ.empty:
     owed = float(summ.loc[summ["balance_due"] > 0, "balance_due"].sum())
     open_count = int((summ["balance_due"] > 0).sum())
-raw_val = float(raw["stock_value"].sum()) if not raw.empty else 0.0
 total_sold = float(fg["sold"].sum()) if not fg.empty else 0.0
 low = []
 if not raw.empty:
@@ -60,7 +61,8 @@ d1, d2, d3, d4, d5 = st.columns(5)
 with d1:
     ui.tile("recv", "Balance Receivable", "PKR " + ui.money(owed), str(open_count) + " Open Invoices", SALES)
 with d2:
-    ui.tile("raw", "Raw Material Stock Value", "PKR " + ui.money(raw_val), str(len(raw)) + " Items", STOCK)
+    ui.tile("cogs", "Cost Of Goods Sold (COGS)", "PKR " + ui.money(p["cogs"]),
+            f"{pct(p['cogs']):.1f}% Of Net Sales", REPORTS)
 with d3:
     ui.tile("exp", "Expenses", "PKR " + ui.money(p["operating_expenses"]),
             f"{pct(p['operating_expenses']):.1f}% Of Net Sales", EXPENSES)

@@ -40,6 +40,16 @@ Profit & Loss / Cash-in-Hand dashboard. Data lives in Supabase (Postgres).
    already used the stock, the app explains which dependent entry must be
    corrected first rather than silently desyncing stock or profit.
 
+## Investor Profit & Loss report
+**Reports -> Profit and Loss Using Cost of Goods Sold** produces a period-based
+statement from the same locked `invoice_lines.cogs_amount` used by the dashboard.
+It includes sales, discounts, COGS, gross profit, damage, each operating-expense
+category, overall profit, owner draws and current retained profit, plus product
+and monthly supporting schedules. The statement can be downloaded as a formatted
+Excel workbook or PDF. Raw-material purchases are inventory when bought; they do
+not reduce profit until the finished goods made from them are sold (COGS) or
+damaged.
+
 ## Secrets (Streamlit: Manage App -> Settings -> Secrets)
 ```toml
 SUPABASE_URL = "https://<your-project-ref>.supabase.co"

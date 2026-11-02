@@ -342,6 +342,7 @@ SECTION_ICONS = {
     "Owner Draws": "person",
     "By Category": "bar_chart",
     "Sales By Products": "bar_chart",
+    "Profit and Loss Using Cost of Goods Sold": "account_balance",
 }
 
 

@@ -210,6 +210,271 @@ def cash_in_hand():
             "operating_expenses": op_exp, "owner_draws": draws, "cash_in_hand": cash}
 
 
+def _report_frame(df, columns):
+    out = pd.DataFrame(columns=columns) if df is None else df.copy()
+    for col in columns:
+        if col not in out.columns:
+            out[col] = pd.Series(dtype="object")
+    return out
+
+
+def _report_number(series):
+    return pd.to_numeric(series, errors="coerce").fillna(0.0)
+
+
+def profit_loss_report(invoices, invoice_lines, products, damages, expenses,
+                       start_date=None, end_date=None):
+    """Build an investor-ready Profit & Loss statement for a date period.
+
+    This deliberately uses ``invoice_lines.cogs_amount`` — the actual batch
+    cost locked onto each invoice line when the goods were sold. It does not
+    use current average raw-material cost and it does not treat a raw-material
+    purchase as an immediate expense. Purchases become cost only when the
+    finished goods made from them are sold (COGS) or damaged.
+    """
+    inv = _report_frame(invoices, ["id", "invoice_date", "customer_id", "invoice_discount"])
+    lines = _report_frame(invoice_lines, ["invoice_id", "product_id", "qty", "unit_rate",
+                                          "line_discount", "cogs_amount"])
+    prods = _report_frame(products, ["id", "name"])
+    dam = _report_frame(damages, ["damage_date", "qty", "unit_cost_at_time"])
+    exp = _report_frame(expenses, ["expense_date", "category", "type", "amount"])
+
+    start = pd.Timestamp(start_date).normalize() if start_date is not None else None
+    end_exclusive = (pd.Timestamp(end_date).normalize() + pd.Timedelta(days=1)
+                     if end_date is not None else None)
+
+    def in_period(frame, date_col):
+        if frame.empty:
+            return frame.copy()
+        out = frame.copy()
+        dates = pd.to_datetime(out[date_col], errors="coerce")
+        mask = dates.notna()
+        if start is not None:
+            mask &= dates >= start
+        if end_exclusive is not None:
+            mask &= dates < end_exclusive
+        out["_report_date"] = dates
+        return out.loc[mask].copy()
+
+    inv = in_period(inv, "invoice_date")
+    dam = in_period(dam, "damage_date")
+    exp = in_period(exp, "expense_date")
+
+    for col in ("invoice_discount",):
+        inv[col] = _report_number(inv[col])
+    for col in ("qty", "unit_rate", "line_discount", "cogs_amount"):
+        lines[col] = _report_number(lines[col])
+    for col in ("qty", "unit_cost_at_time"):
+        dam[col] = _report_number(dam[col])
+    exp["amount"] = _report_number(exp["amount"])
+    exp["category"] = exp["category"].fillna("Uncategorised").astype(str).str.strip()
+    exp.loc[exp["category"] == "", "category"] = "Uncategorised"
+    exp["type"] = exp["type"].fillna("").astype(str).str.strip().str.upper()
+
+    if not lines.empty and not inv.empty:
+        sold = lines.merge(
+            inv[["id", "invoice_date", "_report_date"]],
+            left_on="invoice_id", right_on="id", how="inner", suffixes=("", "_invoice"))
+    else:
+        sold = lines.iloc[0:0].copy()
+        sold["_report_date"] = pd.Series(dtype="datetime64[ns]")
+    if not sold.empty:
+        sold["gross_amount"] = sold["qty"] * sold["unit_rate"]
+        sold["sales_after_line_discount"] = sold["gross_amount"] - sold["line_discount"]
+
+    gross_sales = float(sold["gross_amount"].sum()) if not sold.empty else 0.0
+    line_discounts = float(sold["line_discount"].sum()) if not sold.empty else 0.0
+    whole_invoice_discounts = float(inv["invoice_discount"].sum()) if not inv.empty else 0.0
+    discounts = line_discounts + whole_invoice_discounts
+    net_sales = gross_sales - discounts
+    cogs = float(sold["cogs_amount"].sum()) if not sold.empty else 0.0
+    gross_profit = net_sales - cogs
+    damage_loss = float((dam["qty"] * dam["unit_cost_at_time"]).sum()) if not dam.empty else 0.0
+
+    operating = exp[exp["type"] == "OPERATING"].copy()
+    draws = exp[exp["type"] == "OWNER DRAW"].copy()
+    operating_expenses = float(operating["amount"].sum()) if not operating.empty else 0.0
+    owner_draws = float(draws["amount"].sum()) if not draws.empty else 0.0
+    overall_profit = gross_profit - damage_loss - operating_expenses
+    current_profit = overall_profit - owner_draws
+
+    def pct(amount):
+        return (float(amount) / net_sales * 100.0) if net_sales else 0.0
+
+    if not operating.empty:
+        op_breakdown = (operating.groupby("category", as_index=False)
+                        .agg(Entries=("amount", "size"), Amount=("amount", "sum"))
+                        .sort_values("Amount", ascending=False))
+    else:
+        op_breakdown = pd.DataFrame(columns=["category", "Entries", "Amount"])
+
+    statement_rows = [
+        ("Gross Sales", gross_sales, "Detail"),
+        ("Less: Discounts", -discounts, "Detail"),
+        ("Net Sales", net_sales, "Subtotal"),
+        ("Less: Cost of Goods Sold (COGS)", -cogs, "Detail"),
+        ("Gross Profit", gross_profit, "Subtotal"),
+        ("Less: Damage & Wastage", -damage_loss, "Detail"),
+    ]
+    for _, row in op_breakdown.iterrows():
+        statement_rows.append((f"Operating Expense — {row['category']}",
+                               -float(row["Amount"]), "Expense Detail"))
+    statement_rows += [
+        ("Total Operating Expenses", -operating_expenses, "Subtotal"),
+        ("Overall Profit", overall_profit, "Total"),
+        ("Less: Owner Draws", -owner_draws, "Detail"),
+        ("Current Profit (Profit Retained in Business)", current_profit, "Total"),
+    ]
+    statement = pd.DataFrame([
+        {"Particulars": label, "Amount (PKR)": float(amount),
+         "% of Net Sales": pct(amount), "Row Type": row_type}
+        for label, amount, row_type in statement_rows
+    ])
+
+    # ----- Supporting schedule: product sales and locked COGS -----
+    if not sold.empty:
+        names = dict(zip(prods["id"], prods["name"])) if not prods.empty else {}
+        sold["Product"] = sold["product_id"].map(names).fillna(
+            sold["product_id"].map(lambda v: f"Product #{v}"))
+        product_schedule = (sold.groupby("Product", as_index=False).agg(
+            **{"Bundles Sold": ("qty", "sum"),
+               "Gross Sales (PKR)": ("gross_amount", "sum"),
+               "Line Discounts (PKR)": ("line_discount", "sum"),
+               "Sales After Line Discounts (PKR)": ("sales_after_line_discount", "sum"),
+               "COGS (PKR)": ("cogs_amount", "sum")})
+            .sort_values("Sales After Line Discounts (PKR)", ascending=False))
+        product_schedule["Gross Profit Before Whole-Invoice Discounts (PKR)"] = (
+            product_schedule["Sales After Line Discounts (PKR)"] - product_schedule["COGS (PKR)"])
+        product_schedule["Gross Margin %"] = product_schedule.apply(
+            lambda r: (r["Gross Profit Before Whole-Invoice Discounts (PKR)"] /
+                       r["Sales After Line Discounts (PKR)"] * 100.0)
+            if r["Sales After Line Discounts (PKR)"] else 0.0, axis=1)
+    else:
+        product_schedule = pd.DataFrame(columns=[
+            "Product", "Bundles Sold", "Gross Sales (PKR)", "Line Discounts (PKR)",
+            "Sales After Line Discounts (PKR)", "COGS (PKR)",
+            "Gross Profit Before Whole-Invoice Discounts (PKR)", "Gross Margin %"])
+
+    # ----- Supporting schedule: expense and owner-draw categories -----
+    expense_frames = []
+    for label, frame in (("Operating Expense", operating), ("Owner Draw", draws)):
+        if frame.empty:
+            continue
+        grouped = (frame.groupby("category", as_index=False)
+                   .agg(Entries=("amount", "size"), Amount=("amount", "sum")))
+        grouped["Type"] = label
+        type_total = float(grouped["Amount"].sum())
+        grouped["% of Net Sales"] = grouped["Amount"].map(pct)
+        grouped["% of Type Total"] = grouped["Amount"].map(
+            lambda v: (float(v) / type_total * 100.0) if type_total else 0.0)
+        expense_frames.append(grouped)
+    if expense_frames:
+        expense_schedule = pd.concat(expense_frames, ignore_index=True)
+        expense_schedule = expense_schedule.rename(columns={
+            "category": "Category", "Amount": "Amount (PKR)"})
+        expense_schedule = expense_schedule[[
+            "Type", "Category", "Entries", "Amount (PKR)", "% of Net Sales", "% of Type Total"]]
+        expense_schedule = expense_schedule.sort_values(
+            ["Type", "Amount (PKR)"], ascending=[True, False]).reset_index(drop=True)
+    else:
+        expense_schedule = pd.DataFrame(columns=[
+            "Type", "Category", "Entries", "Amount (PKR)", "% of Net Sales", "% of Type Total"])
+
+    # ----- Supporting schedule: month-by-month P&L -----
+    def month_key(frame):
+        if frame.empty or "_report_date" not in frame:
+            return pd.Series(dtype="object")
+        return frame["_report_date"].dt.strftime("%Y-%m")
+
+    month_keys = set()
+    sales_by_month = {}
+    if not sold.empty:
+        sold["_month"] = month_key(sold)
+        for key, group in sold.groupby("_month"):
+            month_keys.add(key)
+            sales_by_month[key] = {
+                "gross": float(group["gross_amount"].sum()),
+                "line_discounts": float(group["line_discount"].sum()),
+                "cogs": float(group["cogs_amount"].sum()),
+            }
+    invoice_discount_by_month = {}
+    if not inv.empty:
+        inv["_month"] = month_key(inv)
+        for key, group in inv.groupby("_month"):
+            month_keys.add(key)
+            invoice_discount_by_month[key] = float(group["invoice_discount"].sum())
+
+    def dated_amounts(frame, value_col=None):
+        values = {}
+        if frame.empty:
+            return values
+        work = frame.copy()
+        work["_month"] = month_key(work)
+        work["_value"] = (work["qty"] * work["unit_cost_at_time"] if value_col is None
+                          else work[value_col])
+        for key, group in work.groupby("_month"):
+            month_keys.add(key)
+            values[key] = float(group["_value"].sum())
+        return values
+
+    damage_by_month = dated_amounts(dam)
+    operating_by_month = dated_amounts(operating, "amount")
+    draws_by_month = dated_amounts(draws, "amount")
+
+    monthly_rows = []
+    for key in sorted(month_keys):
+        s = sales_by_month.get(key, {"gross": 0.0, "line_discounts": 0.0, "cogs": 0.0})
+        month_discounts = s["line_discounts"] + invoice_discount_by_month.get(key, 0.0)
+        month_net = s["gross"] - month_discounts
+        month_gross_profit = month_net - s["cogs"]
+        month_overall = (month_gross_profit - damage_by_month.get(key, 0.0)
+                         - operating_by_month.get(key, 0.0))
+        monthly_rows.append({
+            "Month": pd.Timestamp(key + "-01").strftime("%b %Y"),
+            "Gross Sales (PKR)": s["gross"],
+            "Discounts (PKR)": month_discounts,
+            "Net Sales (PKR)": month_net,
+            "COGS (PKR)": s["cogs"],
+            "Gross Profit (PKR)": month_gross_profit,
+            "Damage & Wastage (PKR)": damage_by_month.get(key, 0.0),
+            "Operating Expenses (PKR)": operating_by_month.get(key, 0.0),
+            "Overall Profit (PKR)": month_overall,
+            "Owner Draws (PKR)": draws_by_month.get(key, 0.0),
+            "Current Profit (PKR)": month_overall - draws_by_month.get(key, 0.0),
+        })
+    monthly = pd.DataFrame(monthly_rows, columns=[
+        "Month", "Gross Sales (PKR)", "Discounts (PKR)", "Net Sales (PKR)", "COGS (PKR)",
+        "Gross Profit (PKR)", "Damage & Wastage (PKR)", "Operating Expenses (PKR)",
+        "Overall Profit (PKR)", "Owner Draws (PKR)", "Current Profit (PKR)"])
+
+    summary = {
+        "gross_sales": gross_sales,
+        "line_discounts": line_discounts,
+        "whole_invoice_discounts": whole_invoice_discounts,
+        "discounts": discounts,
+        "net_sales": net_sales,
+        "cogs": cogs,
+        "gross_profit": gross_profit,
+        "gross_margin_pct": pct(gross_profit),
+        "damage_loss": damage_loss,
+        "operating_expenses": operating_expenses,
+        "overall_profit": overall_profit,
+        "overall_profit_pct": pct(overall_profit),
+        "owner_draws": owner_draws,
+        "current_profit": current_profit,
+        "current_profit_pct": pct(current_profit),
+        "invoice_count": int(inv["id"].nunique()) if not inv.empty else 0,
+        "bundles_sold": float(sold["qty"].sum()) if not sold.empty else 0.0,
+    }
+    return {
+        "summary": summary,
+        "statement": statement,
+        "product_schedule": product_schedule,
+        "expense_schedule": expense_schedule,
+        "monthly": monthly,
+    }
+
+
 def name_map(df, key="name"):
     if df is None or df.empty:
         return {}

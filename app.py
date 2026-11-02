@@ -1,7 +1,11 @@
 import base64
 import datetime as dt
 import hmac
+import importlib
 import json
+import os
+import sys
+import threading
 import time
 
 import streamlit as st
@@ -9,6 +13,40 @@ import streamlit.components.v1 as components
 
 import db
 import ui
+
+
+def _module_signature(module):
+    stat = os.stat(module.__file__)
+    return (stat.st_mtime_ns, stat.st_size)
+
+
+def _fresh_local_modules():
+    """Reload this app's own helper modules after a live update.
+
+    Streamlit re-reads page files on every run, but a long-running process can
+    keep an already-imported helper module (db/ui) in memory. After an update
+    that can make a new page call an old helper - for example, a page passing
+    a new option to ui.entity_table() while the old ui.py is still loaded.
+    Reloading in place updates the existing module objects, so every page
+    sees the code that is actually on disk. The first run of this check in a
+    process reloads once, which also repairs a process that is already stale.
+    """
+    state = sys.__dict__.setdefault(
+        "_orca_local_module_freshness",
+        {"lock": threading.RLock(), "signatures": {}, "checked": False},
+    )
+    with state["lock"]:
+        first_check = not state["checked"]
+        for module in (db, ui):  # db first: ui imports it
+            signature = _module_signature(module)
+            if first_check or state["signatures"].get(module.__name__) != signature:
+                importlib.reload(module)
+                signature = _module_signature(module)
+            state["signatures"][module.__name__] = signature
+        state["checked"] = True
+
+
+_fresh_local_modules()
 
 st.set_page_config(page_title="ORCA Water", layout="wide", initial_sidebar_state="collapsed")
 ui.inject_css()

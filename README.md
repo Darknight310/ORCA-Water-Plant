@@ -58,6 +58,13 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+## After merging an update on Streamlit Cloud
+`app.py` checks whether `db.py` / `ui.py` changed and reloads them, because a
+long-running Streamlit process can otherwise keep using an older copy of those
+helper files after the page files have updated. If an error appears immediately
+after a merge, wait a minute and refresh; if it stays, use **Manage app ->
+Reboot app**. Rebooting does not affect the data in Supabase.
+
 ## Backups
 - **Data:** Sidebar -> "Prepare Excel Backup" exports every table to one .xlsx.
   Do this regularly and keep the file somewhere safe.

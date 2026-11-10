@@ -86,40 +86,47 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 [data-testid="stTopNav"] {
   align-items: center !important;
   padding: .28rem .75rem !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+  background: rgba(17,24,39,.6) !important;
+  border: 1px solid rgba(148,163,184,.14) !important;
+  border-radius: 999px !important;
+  box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  gap: 0 !important;
 }
 [data-testid="stTopNavLink"],
 [data-testid="stTopNavDropdownLink"] {
   --chip: #7FFF00; --chip-rgb: 127,255,0;
   align-items: center !important;
-  gap: .45rem !important;
-  min-height: 2.5rem !important;
-  margin: .12rem .06rem !important;
-  padding: .32rem .72rem .32rem .42rem !important;
-  border: 1px solid rgba(148,163,184,.14) !important;
-  border-radius: 999px !important;
-  background: rgba(17,24,39,.82) !important;
-  box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  gap: 0 !important;
+  min-height: 2.2rem !important;
+  margin: 0 !important;
+  padding: .32rem 1rem !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
   color: #94A3B8 !important;
   text-decoration: none !important;
   font-weight: 600 !important;
   transition: all .18s ease !important;
 }
+[data-testid="stTopNavLink"]:first-child,
+[data-testid="stTopNavDropdownLink"]:first-child {
+  border-radius: 999px 0 0 999px !important;
+}
+[data-testid="stTopNavLink"]:last-child,
+[data-testid="stTopNavDropdownLink"]:last-child {
+  border-radius: 0 999px 999px 0 !important;
+}
 [data-testid="stTopNavLink"]:hover,
 [data-testid="stTopNavDropdownLink"]:hover {
-  border-color: rgba(127,255,0,.45) !important;
   background: rgba(127,255,0,.08) !important;
   color: #F8FAFC !important;
-  box-shadow: 0 8px 20px rgba(2,6,23,.22), 0 0 0 1px rgba(127,255,0,.12) !important;
 }
 [data-testid="stTopNavLink"][aria-current="page"],
 [data-testid="stTopNavDropdownLink"][aria-current="page"] {
-  border-color: #7FFF00 !important;
   background: #7FFF00 !important;
   color: #0B0F17 !important;
-  box-shadow: 0 8px 24px rgba(127,255,0,.35), inset 0 1px 0 rgba(255,255,255,.2) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2) !important;
 }
 [data-testid="stTopNavLink"]:focus-visible,
 [data-testid="stTopNavDropdownLink"]:focus-visible {
@@ -137,26 +144,22 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 }
 [data-testid="stTopNavLink"] [data-testid="stIconMaterial"],
 [data-testid="stTopNavDropdownLink"] [data-testid="stIconMaterial"] {
-  width: 1.55rem !important; height: 1.55rem !important; flex: 0 0 1.55rem !important;
-  border: 1px solid rgba(148,163,184,.2) !important; border-radius: 999px !important;
-  background: rgba(17,24,39,.6) !important; color: #94A3B8 !important;
-  font-size: .9rem !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
-}
-[data-testid="stTopNavLink"][aria-current="page"] [data-testid="stIconMaterial"],
-[data-testid="stTopNavDropdownLink"][aria-current="page"] [data-testid="stIconMaterial"] {
-  border: 1px solid #0B0F17 !important;
-  background: #0B0F17 !important; color: #7FFF00 !important;
-  box-shadow: 0 0 12px rgba(127,255,0,.3), inset 0 1px 0 rgba(255,255,255,.15) !important;
+  display: none !important;
 }
 [data-testid="stTopNavSection"] {
-  min-height: 2.5rem !important; margin: .12rem .06rem !important;
-  padding: .42rem .9rem !important; border: 1px solid rgba(148,163,184,.14) !important;
-  border-radius: 999px !important; background: rgba(17,24,39,.82) !important; color: #94A3B8 !important;
-  box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  min-height: 2.2rem !important; margin: 0 !important;
+  padding: .32rem 1rem !important; border: none !important;
+  border-radius: 0 !important; background: transparent !important; color: #94A3B8 !important;
+  box-shadow: none !important;
   font-weight: 600 !important;
 }
+[data-testid="stTopNavSection"]:first-child {
+  border-radius: 999px 0 0 999px !important;
+}
+[data-testid="stTopNavSection"]:last-child {
+  border-radius: 0 999px 999px 0 !important;
+}
 [data-testid="stTopNavSection"]:hover {
-  border-color: rgba(127,255,0,.45) !important;
   background: rgba(127,255,0,.08) !important;
   color: #F8FAFC !important;
 }
@@ -166,50 +169,48 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 }
 [data-testid="stTopNavDropdownLink"] { width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
 
-/* sub-tab switcher used across pages (ui.sections()) — same pill language as
-   the main tabs: active choice filled in neon lime green. */
+/* sub-tab switcher used across pages (ui.sections()) — single capsule like the
+   main tabs: active choice filled in neon lime green, no icons. */
 div[role="radiogroup"][aria-label="Section"] {
-  display: flex !important; flex-wrap: wrap !important; gap: .55rem !important;
-  padding: 2px !important; background: transparent !important; border: none !important;
-  border-radius: 0 !important; box-shadow: none !important; overflow: visible !important;
-  -webkit-mask-image: none !important; mask-image: none !important;
+  display: flex !important; flex-wrap: wrap !important; gap: 0 !important;
+  padding: 2px !important; background: rgba(17,24,39,.6) !important;
+  border: 1px solid rgba(148,163,184,.14) !important; border-radius: 999px !important;
+  box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  overflow: visible !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
   --chip: #7FFF00; --chip-rgb: 127,255,0;
-  flex: 0 1 auto !important; height: auto !important; min-height: 2.72rem !important;
-  border-radius: 999px !important; margin: 0 !important;
-  border: 1px solid rgba(148,163,184,.14) !important;
-  background: rgba(17,24,39,.82) !important;
+  flex: 0 1 auto !important; height: auto !important; min-height: 2.2rem !important;
+  border-radius: 0 !important; margin: 0 !important;
+  border: none !important;
+  background: transparent !important;
   color: #94A3B8 !important; font-weight: 650 !important;
-  padding: .42rem .9rem .42rem .52rem !important;
-  box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
+  padding: .32rem 1rem !important;
+  box-shadow: none !important;
   transition: all .18s ease !important;
 }
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:first-child {
+  border-radius: 999px 0 0 999px !important;
+}
+div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:last-child {
+  border-radius: 0 999px 999px 0 !important;
+}
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
-  color: inherit !important; margin: 0 !important; font-weight: 650 !important; font-size: .9rem !important;
+  color: inherit !important; margin: 0 !important; font-weight: 650 !important; font-size: .85rem !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {
-  width: 1.66rem !important; height: 1.66rem !important; flex: 0 0 1.66rem !important;
-  border: 1px solid rgba(148,163,184,.2) !important; border-radius: 999px !important;
-  background: rgba(17,24,39,.6) !important; color: #94A3B8 !important;
-  font-size: .98rem !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.06) !important;
+  display: none !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"]:hover,
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-hovered] {
-  border-color: rgba(127,255,0,.45) !important; color: #F8FAFC !important;
   background: rgba(127,255,0,.08) !important;
+  color: #F8FAFC !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"],
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-selected] {
-  border-color: #7FFF00 !important; color: #0B0F17 !important;
   background: #7FFF00 !important;
-  box-shadow: 0 8px 24px rgba(127,255,0,.35), inset 0 1px 0 rgba(255,255,255,.2) !important;
-}
-div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"] [data-testid="stIconMaterial"],
-div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-selected] [data-testid="stIconMaterial"] {
-  border: 1px solid #0B0F17 !important;
-  background: #0B0F17 !important; color: #7FFF00 !important;
-  box-shadow: 0 0 12px rgba(127,255,0,.3), inset 0 1px 0 rgba(255,255,255,.15) !important;
+  color: #0B0F17 !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.2) !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-focus-visible] {
   outline: 2px solid #7FFF00 !important; outline-offset: 2px !important;
@@ -241,22 +242,18 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   [data-testid="stTopNav"] { padding: .22rem .45rem !important; }
   [data-testid="stTopNavLink"],
   [data-testid="stTopNavSection"] { min-height: 2.32rem !important; }
-  [data-testid="stTopNavLink"] { padding: .3rem .58rem .3rem .34rem !important; }
+  [data-testid="stTopNavLink"] { padding: .3rem .6rem !important; }
   [data-testid="stTopNavLink"] p { font-size: .8rem !important; }
-  [data-testid="stTopNavLink"] [data-testid="stIconMaterial"] {
-    width: 1.55rem !important; height: 1.55rem !important; flex-basis: 1.55rem !important;
-    font-size: .94rem !important;
+  [data-testid="stTopNavLink"] [data-testid="stIconMaterial"],
+  div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {
+    display: none !important;
   }
-  div[role="radiogroup"][aria-label="Section"] { gap: .45rem !important; }
+  div[role="radiogroup"][aria-label="Section"] { gap: 0 !important; }
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] {
-    min-height: 2.5rem !important; padding: .36rem .62rem .36rem .4rem !important;
+    min-height: 2.32rem !important; padding: .3rem .6rem !important;
   }
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] p {
     font-size: .8rem !important;
-  }
-  div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {
-    width: 1.5rem !important; height: 1.5rem !important; flex-basis: 1.5rem !important;
-    font-size: .9rem !important;
   }
   [data-testid="stHorizontalBlock"]:has(> [data-testid="stColumn"]:nth-child(4)),
   [data-testid="stHorizontalBlock"]:has(> [data-testid="column"]:nth-child(4)) { flex-wrap: wrap !important; gap: .7rem !important; }
@@ -319,10 +316,8 @@ SECTION_ICONS = {
 
 
 def _section_label(option):
-    """Display-only label: Streamlit turns the leading Material icon into the
-    circular icon styled by the CSS above, while the returned/stored value
-    remains the original plain option text used throughout the views."""
-    return f":material/{SECTION_ICONS.get(option, 'label')}: {option}"
+    """Display-only label: plain option text, no icons on tabs."""
+    return option
 
 
 def sections(options, key, default=None):

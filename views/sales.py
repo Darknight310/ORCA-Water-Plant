@@ -215,7 +215,9 @@ if section == "New Invoice":
                 st.session_state.pop("inv_pre", None)
                 st.session_state["inv_n"] = n + 1
                 st.session_state["flash"] = "Invoice " + no + (" updated." if mode == "edit" else " saved (PKR " + ui.money(net) + ").")
-                if mode != "new":
+                if mode == "order":
+                    ui.goto("sales_tab", "Sale Orders")
+                elif mode == "edit":
                     ui.goto("sales_tab", "Invoices")
                 st.rerun()
             except Exception as e:

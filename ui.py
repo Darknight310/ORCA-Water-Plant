@@ -85,7 +85,7 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
    filled solid in neon lime green, inactive tabs dark with subtle borders. */
 [data-testid="stTopNav"] {
   align-items: center !important;
-  padding: .22rem .55rem !important;
+  padding: .15rem .3rem !important;
   background: rgba(17,24,39,.55) !important;
   border: 1px solid rgba(148,163,184,.14) !important;
   border-radius: 999px !important;
@@ -97,9 +97,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   --chip: #7FFF00; --chip-rgb: 127,255,0;
   align-items: center !important;
   gap: 0 !important;
-  min-height: 2.05rem !important;
+  min-height: 1.85rem !important;
   margin: 0 !important;
-  padding: .26rem .85rem !important;
+  padding: .18rem .5rem !important;
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -111,6 +111,7 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   white-space: nowrap !important;
   overflow: hidden !important;
   text-overflow: ellipsis !important;
+  font-size: .78rem !important;
 }
 [data-testid="stTopNavLink"]:first-child,
 [data-testid="stTopNavDropdownLink"]:first-child {

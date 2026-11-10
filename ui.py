@@ -85,8 +85,8 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
    filled solid in neon lime green, inactive tabs dark with subtle borders. */
 [data-testid="stTopNav"] {
   align-items: center !important;
-  padding: .28rem .75rem !important;
-  background: rgba(17,24,39,.6) !important;
+  padding: .22rem .55rem !important;
+  background: rgba(17,24,39,.55) !important;
   border: 1px solid rgba(148,163,184,.14) !important;
   border-radius: 999px !important;
   box-shadow: 0 6px 18px rgba(2,6,23,.16), inset 0 1px 0 rgba(255,255,255,.04) !important;
@@ -97,9 +97,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   --chip: #7FFF00; --chip-rgb: 127,255,0;
   align-items: center !important;
   gap: 0 !important;
-  min-height: 2.2rem !important;
+  min-height: 2.05rem !important;
   margin: 0 !important;
-  padding: .32rem 1rem !important;
+  padding: .26rem .85rem !important;
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -108,6 +108,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   text-decoration: none !important;
   font-weight: 600 !important;
   transition: all .18s ease !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 [data-testid="stTopNavLink"]:first-child,
 [data-testid="stTopNavDropdownLink"]:first-child {
@@ -124,9 +127,10 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 }
 [data-testid="stTopNavLink"][aria-current="page"],
 [data-testid="stTopNavDropdownLink"][aria-current="page"] {
+  border-radius: 999px !important;
   background: #7FFF00 !important;
   color: #0B0F17 !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.2) !important;
+  box-shadow: 0 0 0 1px rgba(127,255,0,.25), inset 0 1px 0 rgba(255,255,255,.2) !important;
 }
 [data-testid="stTopNavLink"]:focus-visible,
 [data-testid="stTopNavDropdownLink"]:focus-visible {
@@ -208,9 +212,10 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][aria-checked="true"],
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-selected] {
+  border-radius: 999px !important;
   background: #7FFF00 !important;
   color: #0B0F17 !important;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.2) !important;
+  box-shadow: 0 0 0 1px rgba(127,255,0,.25), inset 0 1px 0 rgba(255,255,255,.2) !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-focus-visible] {
   outline: 2px solid #7FFF00 !important; outline-offset: 2px !important;
@@ -241,8 +246,8 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   .dchip-pct { font-size: .68rem; }
   [data-testid="stTopNav"] { padding: .22rem .45rem !important; }
   [data-testid="stTopNavLink"],
-  [data-testid="stTopNavSection"] { min-height: 2.32rem !important; }
-  [data-testid="stTopNavLink"] { padding: .3rem .6rem !important; }
+  [data-testid="stTopNavSection"] { min-height: 2.05rem !important; }
+  [data-testid="stTopNavLink"] { padding: .26rem .6rem !important; }
   [data-testid="stTopNavLink"] p { font-size: .8rem !important; }
   [data-testid="stTopNavLink"] [data-testid="stIconMaterial"],
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {

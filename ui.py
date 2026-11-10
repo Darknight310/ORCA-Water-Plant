@@ -85,7 +85,7 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
    filled solid in neon lime green, inactive tabs dark with subtle borders. */
 [data-testid="stTopNav"] {
   align-items: center !important;
-  padding: .15rem .3rem !important;
+  padding: .1rem .25rem !important;
   background: rgba(17,24,39,.55) !important;
   border: 1px solid rgba(148,163,184,.14) !important;
   border-radius: 999px !important;
@@ -97,9 +97,9 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
   --chip: #7FFF00; --chip-rgb: 127,255,0;
   align-items: center !important;
   gap: 0 !important;
-  min-height: 1.85rem !important;
+  min-height: 1.6rem !important;
   margin: 0 !important;
-  padding: .18rem .5rem !important;
+  padding: .12rem .45rem !important;
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
@@ -245,10 +245,10 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   .dchip-row { font-size: .78rem; padding: .5rem .2rem; }
   .dchip-val { font-size: .8rem; }
   .dchip-pct { font-size: .68rem; }
-  [data-testid="stTopNav"] { padding: .22rem .45rem !important; }
+  [data-testid="stTopNav"] { padding: .1rem .25rem !important; }
   [data-testid="stTopNavLink"],
-  [data-testid="stTopNavSection"] { min-height: 2.05rem !important; }
-  [data-testid="stTopNavLink"] { padding: .26rem .6rem !important; }
+  [data-testid="stTopNavSection"] { min-height: 1.6rem !important; }
+  [data-testid="stTopNavLink"] { padding: .12rem .45rem !important; }
   [data-testid="stTopNavLink"] p { font-size: .8rem !important; }
   [data-testid="stTopNavLink"] [data-testid="stIconMaterial"],
   div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"] [data-testid="stIconMaterial"] {

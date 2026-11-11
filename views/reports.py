@@ -372,19 +372,19 @@ if section == PNL_SECTION:
 
             r1, r2, r3 = st.columns(3)
             with r1:
-                ui.tile("rpnl_net", "Net Sales", "PKR " + ui.money(s["net_sales"], 2), "Period total", REPORTS, important=True)
+                ui.tile("rpnl_net", "Net Sales", "PKR " + ui.money(s["net_sales"], 2), "Period total", "views/reports.py", important=True)
             with r2:
-                ui.tile("rpnl_cogs", "COGS", "PKR " + ui.money(s["cogs"], 2), "Cost of goods sold", REPORTS)
+                ui.tile("rpnl_cogs", "COGS", "PKR " + ui.money(s["cogs"], 2), "Cost of goods sold", "views/reports.py")
             with r3:
-                ui.tile("rpnl_gp", "Gross Profit", "PKR " + ui.money(s["gross_profit"], 2), "Net Sales − COGS", STOCK)
+                ui.tile("rpnl_gp", "Gross Profit", "PKR " + ui.money(s["gross_profit"], 2), "Net Sales − COGS", "views/stock.py")
 
             st.write("")
 
             n1, n2 = st.columns(2)
             with n1:
-                ui.tile("rpnl_op", "Overall Profit", "PKR " + ui.money(s["overall_profit"], 2), "After operating expenses", EXPENSES)
+                ui.tile("rpnl_op", "Overall Profit", "PKR " + ui.money(s["overall_profit"], 2), "After operating expenses", "views/expenses.py")
             with n2:
-                ui.tile("rpnl_cp", "Current Profit", "PKR " + ui.money(s["current_profit"], 2), "After owner draws", EXPENSES, important=True)
+                ui.tile("rpnl_cp", "Current Profit", "PKR " + ui.money(s["current_profit"], 2), "After owner draws", "views/expenses.py", important=True)
             st.caption(
                 f"Period: {period_label}  ·  Invoices: {s['invoice_count']}  ·  "
                 f"Bundles sold: {ui.money(s['bundles_sold'], 2)}  ·  "

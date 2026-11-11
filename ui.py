@@ -233,6 +233,7 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   background: #7FFF00 !important;
   color: #0B0F17 !important;
   box-shadow: 0 0 0 1px rgba(127,255,0,.25), inset 0 1px 0 rgba(255,255,255,.2) !important;
+  padding: .32rem .55rem !important;
 }
 div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_control"][data-focus-visible] {
   outline: 2px solid #7FFF00 !important; outline-offset: 2px !important;

@@ -222,6 +222,62 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   outline: 2px solid #7FFF00 !important; outline-offset: 2px !important;
 }
 
+/* left sidebar navigation — vertical list of pills, active filled in neon green */
+[data-testid="stSidebar"] {
+  background: #0B0F17 !important;
+  border-right: 1px solid #1F2937 !important;
+}
+[data-testid="stSidebarNav"] {
+  padding: 1rem .5rem !important;
+}
+[data-testid="stSidebarNavLink"] {
+  display: flex !important;
+  align-items: center !important;
+  gap: .5rem !important;
+  min-height: 2.6rem !important;
+  margin: 0 .25rem !important;
+  padding: .5rem .75rem !important;
+  border: 1px solid rgba(148,163,184,.12) !important;
+  border-radius: 12px !important;
+  background: rgba(17,24,39,.6) !important;
+  color: #94A3B8 !important;
+  text-decoration: none !important;
+  font-weight: 600 !important;
+  font-size: .85rem !important;
+  transition: all .18s ease !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+[data-testid="stSidebarNavLink"]:hover {
+  border-color: rgba(127,255,0,.45) !important;
+  background: rgba(127,255,0,.08) !important;
+  color: #F8FAFC !important;
+}
+[data-testid="stSidebarNavLink"][aria-current="page"] {
+  border-color: #7FFF00 !important;
+  background: #7FFF00 !important;
+  color: #0B0F17 !important;
+  box-shadow: 0 0 0 1px rgba(127,255,0,.25), inset 0 1px 0 rgba(255,255,255,.2) !important;
+}
+[data-testid="stSidebarNavLink"][aria-current="page"] * {
+  color: #0B0F17 !important;
+}
+[data-testid="stSidebarNavLink"] [data-testid="stIconMaterial"],
+[data-testid="stSidebarNavLink"] svg {
+  display: none !important;
+}
+[data-testid="stSidebarNavLink"] p,
+[data-testid="stSidebarNavLink"] span {
+  margin: 0 !important;
+  font-size: .85rem !important;
+  font-weight: 600 !important;
+}
+[data-testid="stSidebarNavLink"][aria-current="page"] p,
+[data-testid="stSidebarNavLink"][aria-current="page"] span {
+  color: #0B0F17 !important;
+}
+
 /* phone layout: switches automatically on screens up to 768px wide */
 @media (max-width: 768px) {
   .block-container { padding: 5rem .8rem 2rem .8rem; }

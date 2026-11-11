@@ -46,7 +46,7 @@ if not fg.empty and (fg["status"] != "Set level").any():
 
 c1, c2, c3, c4, c5 = st.columns(5)
 with c1:
-    ui.tile("net", "Net Sales", "PKR " + ui.money(net), "Gross Sales PKR " + ui.money(p["gross_sales"]), SALES)
+    ui.tile("net", "Net Sales", "PKR " + ui.money(net), "Gross Sales PKR " + ui.money(p["gross_sales"]), SALES, important=True)
 with c2:
     ui.tile("disc", "Discounts", "PKR " + ui.money(p["discounts"]), f"{pct(p['discounts']):.1f}% Of Net Sales", SALES)
 with c3:
@@ -54,7 +54,7 @@ with c3:
 with c4:
     ui.tile("op", "Overall Profit", "PKR " + ui.money(p["operating_net_profit"]), f"{pct(p['operating_net_profit']):.1f}% Of Net Sales", EXPENSES)
 with c5:
-    ui.tile("cp", "Current Profit", "PKR " + ui.money(p["net_retained_profit"]), "After Owner Draws", EXPENSES)
+    ui.tile("cp", "Current Profit", "PKR " + ui.money(p["net_retained_profit"]), "After Owner Draws", EXPENSES, important=True)
 
 st.write("")
 d1, d2, d3, d4, d5 = st.columns(5)
@@ -68,9 +68,9 @@ with d3:
             f"{pct(p['operating_expenses']):.1f}% Of Net Sales", EXPENSES)
 with d4:
     sub = "Needs Attention" if low else ("All Stock Healthy" if levels_set else "Set Alert Levels In Stock")
-    ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK)
+    ui.tile("low", "Items Running Low", str(len(low)), sub, STOCK, compact=True)
 with d5:
-    ui.tile("gsold", "Total Goods Sold", ui.money(total_sold) + " Bundles", str(len(fg)) + " Products", STOCK)
+    ui.tile("gsold", "Total Goods Sold", ui.money(total_sold) + " Bundles", str(len(fg)) + " Products", STOCK, compact=True)
 
 st.write("")
 st.markdown("#### Cash In Hand")
@@ -87,7 +87,7 @@ with e3:
     ui.tile("cashout", "Expenses + Owner Draws", "PKR " + ui.money(out), "Cash Paid Out", EXPENSES)
 with e4:
     ui.tile("cashhand", "Cash In Hand", "PKR " + ui.money(cash["cash_in_hand"]),
-           "Received − Paid To Suppliers − Expenses − Draws", EXPENSES)
+           "Received − Paid To Suppliers − Expenses − Draws", EXPENSES, important=True)
 
 if reinv["from_profit"] > 0 or reinv["from_sales"] > 0:
     st.caption("Of the money you've put into raw materials and paid suppliers so far, PKR " +

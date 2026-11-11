@@ -33,7 +33,8 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 .card { padding: 20px 22px; }
 [data-testid="stMetric"] { padding: 18px 20px; min-height: 112px; }
 [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] p { color: #94A3B8 !important; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
-[data-testid="stMetricValue"], [data-testid="stMetricValue"] div { color: #FFFFFF !important; font-weight: 800; letter-spacing: -0.02em; }
+[data-testid="stMetricValue"], [data-testid="stMetricValue"] div { color: #FFFFFF !important; font-weight: 800; letter-spacing: -0.02em; overflow-wrap: break-word !important; word-wrap: break-word !important; white-space: normal !important; overflow: visible !important; }
+[data-testid="stMetric"] { overflow: visible !important; }
 [data-testid="stMetricDelta"], [data-testid="stMetricDelta"] div { color: #94A3B8 !important; }
 [data-testid="stExpander"] { border-radius: 16px; overflow: hidden; }
 [data-testid="stDataFrame"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(148,163,184,.25); }

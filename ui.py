@@ -38,6 +38,8 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 [data-testid="stExpander"] { border-radius: 16px; overflow: hidden; }
 [data-testid="stDataFrame"] { border-radius: 16px; overflow: hidden; border: 1px solid rgba(148,163,184,.25); }
 .stButton > button, .stDownloadButton > button, .stFormSubmitButton > button { border-radius: 12px; font-weight: 600; padding: .5rem 1.15rem; }
+.stButton > button[kind="primary"], .stDownloadButton > button[kind="primary"], .stFormSubmitButton > button[kind="primary"] { background: #7FFF00 !important; color: #0B0F17 !important; border: 1px solid #7FFF00 !important; }
+.stButton > button[kind="primary"]:hover, .stDownloadButton > button[kind="primary"]:hover, .stFormSubmitButton > button[kind="primary"]:hover { background: #9FFF33 !important; color: #0B0F17 !important; border-color: #9FFF33 !important; }
 [data-baseweb="input"], [data-baseweb="select"] > div, [data-baseweb="textarea"] { border-radius: 12px !important; }
 
 /* dashboard tiles (the whole tile is a link to its page) */
@@ -235,7 +237,7 @@ div[role="radiogroup"][aria-label="Section"] button[data-variant="segmented_cont
   align-items: center !important;
   gap: .5rem !important;
   min-height: 2.6rem !important;
-  margin: 0 .25rem !important;
+  margin: 0 .25rem .5rem .25rem !important;
   padding: .5rem .75rem !important;
   border: 1px solid rgba(148,163,184,.12) !important;
   border-radius: 12px !important;

@@ -163,7 +163,11 @@ if not st.session_state.get("auth"):
                     if len(guard["fails"]) >= 5:
                         guard["locked_until"] = now + 600
                         guard["fails"] = []
-                    st.error("Wrong password.")
+                    st.markdown(
+                        '<div style="background: rgba(248,113,113,.15); border: 1px solid #F87171; color: #FCA5A5; padding: .75rem 1rem; border-radius: 8px; font-weight: 600; margin-top: .5rem;">'
+                        '\u26a0 Wrong password — please try again.</div>',
+                        unsafe_allow_html=True,
+                    )
     st.stop()
 
 pages = [

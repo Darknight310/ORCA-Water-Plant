@@ -370,12 +370,21 @@ if section == PNL_SECTION:
             monthly = report["monthly"].copy()
             expense_schedule = report["expense_schedule"].copy()
 
-            m1, m2, m3, m4, m5 = st.columns(5)
-            m1.metric("Net Sales", "PKR " + ui.money(s["net_sales"], 2))
-            m2.metric("COGS", "PKR " + ui.money(s["cogs"], 2))
-            m3.metric("Gross Profit", "PKR " + ui.money(s["gross_profit"], 2))
-            m4.metric("Overall Profit", "PKR " + ui.money(s["overall_profit"], 2))
-            m5.metric("Current Profit", "PKR " + ui.money(s["current_profit"], 2))
+            r1, r2, r3 = st.columns(3)
+            with r1:
+                ui.tile("rpnl_net", "Net Sales", "PKR " + ui.money(s["net_sales"], 2), "Period total", REPORTS, important=True)
+            with r2:
+                ui.tile("rpnl_cogs", "COGS", "PKR " + ui.money(s["cogs"], 2), "Cost of goods sold", REPORTS)
+            with r3:
+                ui.tile("rpnl_gp", "Gross Profit", "PKR " + ui.money(s["gross_profit"], 2), "Net Sales − COGS", STOCK)
+
+            st.write("")
+
+            n1, n2 = st.columns(2)
+            with n1:
+                ui.tile("rpnl_op", "Overall Profit", "PKR " + ui.money(s["overall_profit"], 2), "After operating expenses", EXPENSES)
+            with n2:
+                ui.tile("rpnl_cp", "Current Profit", "PKR " + ui.money(s["current_profit"], 2), "After owner draws", EXPENSES, important=True)
             st.caption(
                 f"Period: {period_label}  ·  Invoices: {s['invoice_count']}  ·  "
                 f"Bundles sold: {ui.money(s['bundles_sold'], 2)}  ·  "

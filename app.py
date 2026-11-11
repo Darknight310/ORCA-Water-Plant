@@ -176,7 +176,7 @@ pages = [
     st.Page("views/reports.py", title="Reports", icon=":material/bar_chart:"),
 ]
 try:
-    nav = st.navigation(pages, position="top")
+    nav = st.navigation(pages, position="sidebar")
 except TypeError:
     nav = st.navigation(pages)
 

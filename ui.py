@@ -52,8 +52,21 @@ h4 { font-weight: 700; letter-spacing: -0.01em; }
 [class*="st-key-tile_"]:hover .tile { transform: translateY(-3px); border-color: #7FFF00; box-shadow: 0 16px 34px rgba(127,255,0,.16); }
 .tl { color: #94A3B8; font-size: .74rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .tv { color: #FFFFFF; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.02em; margin-top: .35rem; line-height: 1.15;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  overflow-wrap: break-word; word-wrap: break-word; white-space: normal !important; overflow: visible !important; }
+.ts { color: #94A3B8; font-size: .82rem; margin-top: .45rem; overflow-wrap: break-word; word-wrap: break-word; white-space: normal !important; overflow: visible !important; }
+
+/* important tiles: black text on neon green background */
+.tile-important { background: #7FFF00 !important; border-color: #7FFF00 !important; }
+.tile-important .tl { color: #0B0F17 !important; }
+.tile-important .tv { color: #0B0F17 !important; }
+.tile-important .ts { color: #0B0F17 !important; }
+[class*="st-key-tile_"]:hover .tile-important { border-color: #9FFF33 !important; box-shadow: 0 16px 34px rgba(127,255,0,.16); }
+
+/* compact tiles: smaller for count values that don't need much space */
+.tile-compact { padding: 12px 14px !important; min-height: 96px !important; }
+.tile-compact .tl { font-size: .68rem !important; }
+.tile-compact .tv { font-size: 1.35rem !important; }
+.tile-compact .ts { font-size: .72rem !important; margin-top: .3rem !important; }
 
 /* profit & loss card */
 .pnl-card { padding: 22px 24px 8px; }
@@ -407,9 +420,14 @@ def goto(key, option):
 
 
 # ---------------------------------------------------------------------- tiles
-def tile(key, label, value, sub, target):
+def tile(key, label, value, sub, target, important=False, compact=False):
+    cls = "tile"
+    if important:
+        cls += " tile-important"
+    if compact:
+        cls += " tile-compact"
     with st.container(key="tile_" + key):
-        st.markdown('<div class="tile"><div class="tl">' + label + '</div><div class="tv">' + value +
+        st.markdown('<div class="' + cls + '"><div class="tl">' + label + '</div><div class="tv">' + value +
                     '</div><div class="ts">' + sub + '</div></div>', unsafe_allow_html=True)
         st.page_link(target, label="Open")
 

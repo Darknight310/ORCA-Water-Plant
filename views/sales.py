@@ -270,16 +270,27 @@ elif section == "Invoices":
         if not inv_row.empty and pd.notna(inv_row.iloc[0]["notes"]):
             st.caption("Notes: " + str(inv_row.iloc[0]["notes"]))
 
-    if summ.empty:
-        st.info("No invoices yet.")
-    else:
-        owed = float(summ.loc[summ["balance_due"] > 0, "balance_due"].sum())
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Invoices", str(len(summ)))
-        k2.metric("Billed", "PKR " + ui.money(summ["net_amount"].sum()))
-        k3.metric("Received", "PKR " + ui.money(summ["received"].sum()))
-        k4.metric("Receivables", "PKR " + ui.money(owed))
-        f1, f2 = st.columns([2, 1])
+        if summ.empty:
+            st.info("No invoices yet.")
+        else:
+            owed = float(summ.loc[summ["balance_due"] > 0, "balance_due"].sum())
+            s1, s2 = st.columns(2)
+            with s1:
+                ui.tile("si_invoices", "Invoices", str(len(summ)), "Total invoice count", "views/sales.py")
+            with s2:
+                ui.tile("si_billed", "Billed", "PKR " + ui.money(summ["net_amount"].sum()), "Total amount billed", "views/sales.py", important=True)
+
+            st.write("")
+
+            t1, t2 = st.columns(2)
+            with t1:
+                ui.tile("si_received", "Received", "PKR " + ui.money(summ["received"].sum()), "Payments received", "views/sales.py")
+            with t2:
+                ui.tile("si_receivables", "Receivables", "PKR " + ui.money(owed), "Balance due from customers", "views/sales.py", important=True)
+
+            st.write("")
+
+            f1, f2 = st.columns([2, 1])
         q = f1.text_input("Search", placeholder="Invoice number or customer", key="inv_search")
         stat = f2.multiselect("Status", ["Unpaid", "Partial", "Paid"], default=["Unpaid", "Partial", "Paid"], key="inv_status")
         v = summ[summ["status"].isin(stat)]
@@ -306,10 +317,17 @@ elif section == "Sale Orders":
         so_pre = st.session_state.get("so_pre")
         sn = st.session_state.setdefault("so_n", 0)
         pending = orders[orders["status"] == "Pending"] if not orders.empty else orders
-        k1, k2, k3 = st.columns(3)
-        k1.metric("Pending Orders", str(len(pending)))
-        k2.metric("Pending Value", "PKR " + ui.money(pending["net_amount"].sum() if not pending.empty else 0))
-        k3.metric("Invoiced Orders", str(int((orders["status"] == "Invoiced").sum()) if not orders.empty else 0))
+        o1, o2 = st.columns(2)
+        with o1:
+            ui.tile("so_pending", "Pending Orders", str(len(pending)), "Orders awaiting invoice", "views/sales.py")
+        with o2:
+            ui.tile("so_value", "Pending Value", "PKR " + ui.money(pending["net_amount"].sum() if not pending.empty else 0), "Total pending order value", "views/sales.py", important=True)
+
+        st.write("")
+
+        o3 = st.columns(1)[0]
+        with o3:
+            ui.tile("so_invoiced", "Invoiced Orders", str(int((orders["status"] == "Invoiced").sum()) if not orders.empty else 0), "Orders converted to invoices", "views/sales.py")
         st.caption("A sale order is a pending, not-yet-delivered order. It does not count as a receivable until you convert it to an invoice.")
 
         title = "New Sale Order" if not so_pre else "Edit Sale Order " + so_pre["order_no"]

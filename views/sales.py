@@ -307,13 +307,17 @@ elif section == "Sale Orders":
         so_pre = st.session_state.get("so_pre")
         sn = st.session_state.setdefault("so_n", 0)
         pending = orders[orders["status"] == "Pending"] if not orders.empty else orders
-        o1, o2, o3 = st.columns(3)
+        o1, o2 = st.columns(2)
         with o1:
-            st.write("**Pending Orders:**", len(pending))
+            ui.tile("so_pending", "Pending Orders", str(len(pending)), "Orders awaiting invoice", "views/sales.py")
         with o2:
-            st.write("**Pending Value:**", "PKR " + ui.money(pending["net_amount"].sum() if not pending.empty else 0))
+            ui.tile("so_value", "Pending Value", "PKR " + ui.money(pending["net_amount"].sum() if not pending.empty else 0), "Total pending order value", "views/sales.py", important=True)
+
+        st.write("")
+
+        o3 = st.columns(1)[0]
         with o3:
-            st.write("**Invoiced Orders:**", str(int((orders["status"] == "Invoiced").sum()) if not orders.empty else 0))
+            ui.tile("so_invoiced", "Invoiced Orders", str(int((orders["status"] == "Invoiced").sum()) if not orders.empty else 0), "Orders converted to invoices", "views/sales.py")
         st.caption("A sale order is a pending, not-yet-delivered order. It does not count as a receivable until you convert it to an invoice.")
 
         title = "New Sale Order" if not so_pre else "Edit Sale Order " + so_pre["order_no"]

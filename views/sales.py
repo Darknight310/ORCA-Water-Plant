@@ -291,22 +291,23 @@ elif section == "Invoices":
             st.write("")
 
             f1, f2 = st.columns([2, 1])
-        q = f1.text_input("Search", placeholder="Invoice number or customer", key="inv_search")
-        stat = f2.multiselect("Status", ["Unpaid", "Partial", "Paid"], default=["Unpaid", "Partial", "Paid"], key="inv_status")
-        v = summ[summ["status"].isin(stat)]
-        if q:
-            v = v[v["invoice_no"].str.contains(q, case=False, na=False) |
-                  v["customer_name"].str.contains(q, case=False, na=False)]
-        v = v.sort_values("id", ascending=False)
-        ui.entity_table(
-            "inv", v,
-            [("Invoice", "invoice_no", None), ("Date", "invoice_date", None), ("Customer", "customer_name", None),
-             ("Amount", "net_amount", 0), ("Received", "received", 0), ("Balance Receivable", "balance_due", 0),
-             ("Status", "status", None)],
-            on_edit=edit_invoice, on_delete=delete_invoice,
-            extras=[("Add Payment", add_payment, lambda r: r["balance_due"] > 0)],
-            detail=("View Items", show_items),
-            label=lambda r: r["invoice_no"] + "  ·  " + r["customer_name"])
+            q = f1.text_input("Search", placeholder="Invoice number or customer", key="inv_search")
+            stat = f2.multiselect("Status", ["Unpaid", "Partial", "Paid"], default=["Unpaid", "Partial", "Paid"],
+                                  key="inv_status")
+            v = summ[summ["status"].isin(stat)]
+            if q:
+                v = v[v["invoice_no"].str.contains(q, case=False, na=False) |
+                      v["customer_name"].str.contains(q, case=False, na=False)]
+            v = v.sort_values("id", ascending=False)
+            ui.entity_table(
+                "inv", v,
+                [("Invoice", "invoice_no", None), ("Date", "invoice_date", None), ("Customer", "customer_name", None),
+                 ("Amount", "net_amount", 0), ("Received", "received", 0), ("Balance Receivable", "balance_due", 0),
+                 ("Status", "status", None)],
+                on_edit=edit_invoice, on_delete=delete_invoice,
+                extras=[("Add Payment", add_payment, lambda r: r["balance_due"] > 0)],
+                detail=("View Items", show_items),
+                label=lambda r: r["invoice_no"] + "  ·  " + r["customer_name"])
 
 # =============================================================== SALE ORDERS
 elif section == "Sale Orders":

@@ -10,7 +10,7 @@ import ui
 ui.header("Reports", "Investor-ready profit reports and sales breakdowns")
 
 PNL_SECTION = "Profit and Loss Using Cost of Goods Sold"
-section = ui.sections([PNL_SECTION, "Sales By Products"], "report_tab")
+section = ui.sections([PNL_SECTION, "Sales By Products", "Invoice Wise Profit"], "report_tab")
 
 
 def _excel_bytes(df):
@@ -666,3 +666,142 @@ elif section == "Sales By Products":
             key="full_pdf",
             use_container_width=True,
         )
+
+elif section == "Invoice Wise Profit":
+    invoices = db.get("invoices", order="id")
+    invoice_lines = db.get("invoice_lines", order="id")
+    customers = db.get("customers", order="name")
+
+    if invoices.empty or invoice_lines.empty:
+        st.info("No invoices recorded yet.")
+    else:
+        # ---------- Date range filter ----------
+        dates = pd.to_datetime(invoices["invoice_date"], errors="coerce").dropna()
+        data_start = dates.min().date() if not dates.empty else dt.date.today()
+        data_end = dates.max().date() if not dates.empty else dt.date.today()
+        today = dt.date.today()
+        today_ts = pd.Timestamp(today)
+        current_first = today_ts.replace(day=1)
+        current_last = current_first + pd.offsets.MonthEnd(0)
+        previous_last = current_first - pd.Timedelta(days=1)
+        previous_first = previous_last.replace(day=1)
+
+        st.subheader("Invoice Wise Profit")
+        st.caption("Profit per invoice = Revenue − COGS. COGS is the actual batch cost locked "
+                   "onto each invoice line at sale time.")
+
+        p1, p2, p3 = st.columns(3)
+        period_choice = p1.selectbox(
+            "Report Period",
+            ["All Time", "Current Month", "Previous Month", "Custom Dates"],
+            key="iwp_period_choice")
+        if period_choice == "All Time":
+            start_date, end_date = data_start, data_end
+            p2.metric("From", start_date.strftime("%d %b %Y"))
+            p3.metric("To", end_date.strftime("%d %b %Y"))
+        elif period_choice == "Current Month":
+            start_date, end_date = current_first.date(), current_last.date()
+            p2.metric("From", start_date.strftime("%d %b %Y"))
+            p3.metric("To", end_date.strftime("%d %b %Y"))
+        elif period_choice == "Previous Month":
+            start_date, end_date = previous_first.date(), previous_last.date()
+            p2.metric("From", start_date.strftime("%d %b %Y"))
+            p3.metric("To", end_date.strftime("%d %b %Y"))
+        else:
+            start_date = p2.date_input("From", value=data_start, key="iwp_start")
+            end_date = p3.date_input("To", value=data_end, key="iwp_end")
+
+        if start_date > end_date:
+            st.error("The From date must be on or before the To date.")
+        else:
+            start_ts = pd.Timestamp(start_date).normalize()
+            end_exclusive = pd.Timestamp(end_date).normalize() + pd.Timedelta(days=1)
+            inv_dates = pd.to_datetime(invoices["invoice_date"], errors="coerce")
+            mask = inv_dates.notna() & (inv_dates >= start_ts) & (inv_dates < end_exclusive)
+            inv = invoices.loc[mask].copy()
+
+            if inv.empty:
+                st.info("No invoices in this period.")
+            else:
+                # ---------- Per-invoice revenue, COGS, profit ----------
+                lines = invoice_lines.copy()
+                lines["line_revenue"] = lines["qty"] * lines["unit_rate"] - lines["line_discount"]
+
+                inv_agg = (lines.groupby("invoice_id").agg(
+                    revenue=("line_revenue", "sum"),
+                    cogs=("cogs_amount", "sum")).reset_index())
+
+                df = inv_agg.merge(
+                    inv[["id", "invoice_no", "invoice_date", "customer_id", "invoice_discount"]],
+                    left_on="invoice_id", right_on="id")
+                df["revenue"] = df["revenue"] - df["invoice_discount"]
+                df["profit"] = df["revenue"] - df["cogs"]
+                df["margin_pct"] = df.apply(
+                    lambda r: (r["profit"] / r["revenue"] * 100.0) if r["revenue"] else 0.0,
+                    axis=1)
+
+                df = df.merge(
+                    customers[["id", "name"]],
+                    left_on="customer_id", right_on="id", suffixes=("", "_cust"))
+
+                df = df.sort_values("invoice_date", ascending=False)
+
+                # ---------- Summary tiles ----------
+                total_rev = float(df["revenue"].sum())
+                total_cogs = float(df["cogs"].sum())
+                total_profit = float(df["profit"].sum())
+                total_inv = len(df)
+
+                t1, t2, t3, t4 = st.columns(4)
+                with t1:
+                    ui.tile("iwp_invoices", "Invoices", str(total_inv), "Invoices in period",
+                            "views/reports.py")
+                with t2:
+                    ui.tile("iwp_revenue", "Revenue", "PKR " + ui.money(total_rev, 2),
+                            "Total sales after discounts", "views/reports.py")
+                with t3:
+                    ui.tile("iwp_cogs", "COGS", "PKR " + ui.money(total_cogs, 2),
+                            "Cost of goods sold", "views/reports.py")
+                with t4:
+                    ui.tile("iwp_profit", "Profit", "PKR " + ui.money(total_profit, 2),
+                            "Revenue − COGS",
+                            "views/reports.py", important=True)
+
+                st.write("")
+
+                # ---------- Invoice table ----------
+                disp = pd.DataFrame({
+                    "Invoice No.": df["invoice_no"],
+                    "Date": df["invoice_date"],
+                    "Customer": df["name"],
+                    "Revenue (PKR)": df["revenue"],
+                    "COGS (PKR)": df["cogs"],
+                    "Profit (PKR)": df["profit"],
+                    "Margin %": df["margin_pct"],
+                })
+                disp_fmt = ui.fmt(disp, ["Revenue (PKR)", "COGS (PKR)", "Profit (PKR)", "Margin %"], 2)
+
+                ui.table(disp_fmt)
+
+                margin_text = f"{(total_profit / total_rev * 100.0):.2f}%" if total_rev else "0.00%"
+                st.caption("Total Revenue: PKR " + ui.money(total_rev, 2) +
+                           "  ·  Total COGS: PKR " + ui.money(total_cogs, 2) +
+                           "  ·  Total Profit: PKR " + ui.money(total_profit, 2) +
+                           "  ·  Margin: " + margin_text)
+
+                # ---------- Download buttons ----------
+                d1, d2 = st.columns(2)
+                d1.download_button(
+                    "Download Invoice Profit — Excel",
+                    data=_excel_bytes(disp),
+                    file_name=f"invoice_wise_profit_{start_date.isoformat()}_to_{end_date.isoformat()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="iwp_xlsx",
+                    use_container_width=True)
+                d2.download_button(
+                    "Download Invoice Profit — PDF",
+                    data=_pdf_bytes([("Invoice Wise Profit", disp_fmt)]),
+                    file_name=f"invoice_wise_profit_{start_date.isoformat()}_to_{end_date.isoformat()}.pdf",
+                    mime="application/pdf",
+                    key="iwp_pdf",
+                    use_container_width=True)

@@ -731,10 +731,12 @@ elif section == "Invoice Wise Profit":
                     revenue=("line_revenue", "sum"),
                     cogs=("cogs_amount", "sum")).reset_index())
 
-                df = inv_agg.merge(
-                    inv[["id", "invoice_no", "invoice_date", "customer_id", "invoice_discount"]],
-                    left_on="invoice_id", right_on="id")
-                df["revenue"] = df["revenue"] - df["invoice_discount"]
+                # Start from ALL invoices in the period (left join) so invoices
+                # without any lines still show up with zero revenue/COGS/profit.
+                df = inv[["id", "invoice_no", "invoice_date", "customer_id", "invoice_discount"]].merge(
+                    inv_agg, left_on="id", right_on="invoice_id", how="left")
+                df["revenue"] = df["revenue"].fillna(0.0) - df["invoice_discount"]
+                df["cogs"] = df["cogs"].fillna(0.0)
                 df["profit"] = df["revenue"] - df["cogs"]
                 df["margin_pct"] = df.apply(
                     lambda r: (r["profit"] / r["revenue"] * 100.0) if r["revenue"] else 0.0,
